@@ -1,0 +1,35 @@
+experiment_name: naive_ollama
+agent:
+  name: naive
+  prompts:
+    system: prompts/naive/system.txt
+    step: prompts/naive/step.txt
+
+environment:
+  name: crafter
+  observation: local_semantic  # 局部语义状态辅助，不是纯像素观测
+  params: {}
+
+task:
+  description: Collect at least one unit of diamond while staying alive.
+  success_condition:
+    achievement: collect_diamond
+    count: 1
+
+model:
+  provider: ollama
+  base_url: http://localhost:11434
+  name: qwen3.8:latest  # 改成 ollama list 中的本地模型名
+  timeout: 120
+  think: true
+  params:
+    temperature: 0
+    num_predict: 32768  # 包括思考与最终动作输出；think: true 时需预留充足预算
+
+experiment:
+  seeds: [0]
+  episodes_per_seed: 1
+  max_steps: 500
+  max_model_calls: 99999999
+
+output_dir: outputs/naive

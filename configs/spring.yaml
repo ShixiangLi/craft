@@ -1,0 +1,28 @@
+# 配置草案：null 表示待确定的参数。
+experiment_name: spring_example
+agent:
+  name: spring
+  params: {}
+  prompts:
+    system: prompts/spring/system.txt
+    step: prompts/spring/step.txt
+modules: {}
+environment:
+  name: crafter
+  params: {}
+task:
+  description: null
+  success_condition: null
+model:
+  provider: null
+  name: null
+  params: {}
+experiment:
+  seeds:
+  - 0
+  - 1
+  - 2
+  episodes_per_seed: 1
+  max_steps: null
+  max_model_calls: null
+output_dir: outputs/spring

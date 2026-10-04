@@ -1,0 +1,11 @@
+FINAL GOAL
+$goal
+Environment success condition: $success_condition
+
+CURRENT OBSERVATION
+$observation
+
+PREVIOUS ACTION FEEDBACK
+$previous
+
+Select one immediate action that advances the final goal or addresses an urgent survival need. Return only {"action": "<action_name>"} using an exact action name listed above.
