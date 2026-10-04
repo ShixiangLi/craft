@@ -90,7 +90,7 @@ outputs/                 独立实验产物
 tests/                  策略、预算及真实 Crafter 集成测试
 ```
 
-公用记忆、可视化、`run_batch.py`、`analyze_results.py` 和 `comparison.yaml`
+公用记忆、`run_batch.py` 和 `comparison.yaml`
 仍是预留内容，不参与当前运行；多个 seed 可直接在单个方法配置中指定。
 
 ## 观测与评估边界
@@ -128,3 +128,19 @@ outputs/<method>/<UTC时间戳_唯一编号>/
 
 自动测试使用真实 Crafter、受控场景和模拟 Ollama 响应验证策略与边界，不调用
 模型。真实模型联调使用上面的短程命令，完整策略效果需要多 seed 实验。
+
+## 可视化
+
+实验正常结束后自动生成 `visualizations/` 下每个回合的 PNG 和 SVG 图表，包含
+生存状态、成就节点、资源数量、动作分布、模型 token 与调用耗时。多回合
+运行还生成回合指标对比图。绘图失败不会使已完成的实验失效，原因记录在
+`summary.json` 的 `visualization_error` 字段。
+
+已有实验可离线补图，无需重新调用模型：
+
+```bash
+python -m scripts.analyze_results --run-dir outputs/react/<运行目录>
+```
+
+图表使用英文标签避免服务器缺少中文字库。它们是轨迹指标图，不是游戏
+录像：当前没有保存原始 RGB 帧，因此不能仅凭旧日志生成真实画面录像。

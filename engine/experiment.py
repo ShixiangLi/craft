@@ -49,6 +49,15 @@ def run_experiment(config: dict) -> dict:
         summary = {"run_id": run_id, "output_dir": str(output),
                    **aggregate_results(results), "results": results}
         write_json(summary, output / "summary.json")
+        # 绘图失败不使已完成的实验丢失；可用分析入口离线重试。
+        try:
+            from utils.visualization import visualize_run
+            figures = visualize_run(output)
+            summary["visualizations"] = [str(path.relative_to(output)) for path in figures]
+        except Exception as exc:
+            summary["visualization_error"] = f"{type(exc).__name__}: {exc}"
+            print(f"实验已完成，但绘图失败：{exc}。可稍后运行 scripts.analyze_results。", flush=True)
+        write_json(summary, output / "summary.json")
         return summary
     except (Exception, KeyboardInterrupt) as exc:
         write_json({"error": f"{type(exc).__name__}: {exc}", "completed_episodes": results}, output / "error.json")

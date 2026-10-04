@@ -49,6 +49,10 @@ class AgentFlowTest(unittest.TestCase):
                 self.assertEqual(count, 2 * per_step)
                 self.assertEqual(result['total_model_calls'], count)
                 self.assertEqual(result['total_output_tokens'], count * 5)
+                self.assertNotIn('visualization_error', result)
+                self.assertEqual(len(result['visualizations']), 2)
+                for figure in result['visualizations']:
+                    self.assertGreater((Path(result['output_dir']) / figure).stat().st_size, 100)
                 episode = result['results'][0]
                 self.assertEqual(episode['steps'], 2)
                 self.assertEqual(episode['stop_reason'], 'max_steps')
@@ -88,6 +92,17 @@ class AgentFlowTest(unittest.TestCase):
             path = Path(result['output_dir'])/episode['episode_id']/'model_calls.jsonl'
             prompts.append(json.loads(path.read_text())['request']['messages'])
         self.assertEqual(prompts[0], prompts[1])
+
+    def test_plot_failure_preserves_completed_experiment(self):
+        config = self.config('naive')
+        config['experiment']['max_steps'] = 1
+        with patch('utils.visualization.visualize_run', side_effect=RuntimeError('plot unavailable')):
+            result, count = self.run_config(config)
+        self.assertEqual(count, 1)
+        self.assertIn('plot unavailable', result['visualization_error'])
+        output = Path(result['output_dir'])
+        self.assertTrue((output / 'summary.json').exists())
+        self.assertFalse((output / 'error.json').exists())
 
 
 if __name__ == '__main__':

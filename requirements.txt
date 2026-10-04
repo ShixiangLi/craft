@@ -2,3 +2,4 @@ crafter==1.8.3
 numpy==2.2.6
 PyYAML==6.0.3
 Pillow==12.3.0
+matplotlib==3.10.9

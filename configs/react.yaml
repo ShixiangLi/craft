@@ -5,7 +5,7 @@ experiment_name: react_ollama
 agent:
   name: react
   params:
-    max_history_steps: null
+    max_history_steps: 16
   prompts:
     system: prompts/react/system.txt
     step: prompts/react/step.txt
