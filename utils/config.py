@@ -5,6 +5,7 @@ import yaml
 from crafter import constants
 
 from modules.common.model_config import normalize_model_config
+from modules.adapt.components import validate_params as validate_adapt_params
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -12,8 +13,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def validate_config(config: dict) -> dict:
     config = deepcopy(config)
     agent_name = config.get("agent", {}).get("name")
-    if agent_name not in ("naive", "react", "spring"):
-        raise ValueError("agent.name 必须是 naive、react 或 spring")
+    if agent_name not in ("naive", "react", "spring", "adapt"):
+        raise ValueError("agent.name 必须是 naive、react、spring 或 adapt")
     config["model"] = normalize_model_config(config.get("model", {}))
     env = config.get("environment", {})
     if env.get("name") != "crafter" or env.get("observation") != "local_semantic":
@@ -40,8 +41,11 @@ def validate_config(config: dict) -> dict:
             raise ValueError("success_condition.count 必须是正整数")
     prompts = config["agent"]["prompts"]
     required_prompts = {"system", "step"}
-    if agent_name == "react":
+    if agent_name in ("react", "adapt"):
         required_prompts |= {"rules", "examples"}
+        if agent_name == "adapt":
+            required_prompts.add("planner")
+            config["agent"]["params"] = validate_adapt_params(config["agent"].get("params"))
         window = config["agent"].get("params", {}).get("max_history_steps")
         if window is not None and (type(window) is not int or window <= 0):
             raise ValueError("agent.params.max_history_steps 必须为 null 或正整数")

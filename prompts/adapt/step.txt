@@ -1,0 +1,20 @@
+FINAL GOAL
+$goal
+Environment condition for the final goal: $success_condition
+
+CURRENT SUBTASK
+$subtask
+Task path from root to current subtask: $task_path
+Execution depth (root is 1): $depth
+Model calls remaining for this execution attempt, including this call: $remaining_calls
+
+ACTUAL INTERACTIONS IN THIS EXECUTION ATTEMPT (oldest first)
+$history
+
+CURRENT OBSERVATION
+$observation
+
+LATEST ENVIRONMENT FEEDBACK
+$previous
+
+Assess the current subtask from the evidence. If it is complete, report task_completed; if you cannot proceed, report task_failed. Otherwise choose one immediate environment action. Return only {"thought": "...", "action": "..."}.

@@ -28,23 +28,33 @@ class ReActAgent(LLMBaseAgent):
         if self.pending is not None:
             raise RuntimeError("ReAct 必须先 observe 实际环境反馈，再进行下一次 act")
         self.begin_decision()
+        action = self._react_decision(observation)
+        return observation["actions"].index(action)
+
+    def _react_decision(self, observation: Mapping[str, Any], *,
+                        extra_context: dict | None = None, extra_actions=(),
+                        label: str = "react") -> str:
+        """共享执行器；额外控制动作只返回给调用者，不提交环境历史。"""
         context = self.context(observation)
         context["history"] = render_history(self.history, self.max_history_steps)
+        context.update(extra_context or {})
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": Template(self.prompts["step"]).substitute(context)},
         ]
-        actions = observation["actions"]
+        actions = list(observation["actions"]) + list(extra_actions)
         schema = action_schema(actions, extra_properties={"thought": {"type": "string"}})
-        raw = self.query(messages, response_schema=schema, label="react")
+        raw = self.query(messages, response_schema=schema, label=label)
         thought, action_id = parse_react(raw, actions)
-        self.last_decision.update(thought=thought, action=actions[action_id],
+        action = actions[action_id]
+        self.last_decision.update(thought=thought, action=action,
                                   history_steps=len(self.history) if self.max_history_steps is None
                                   else min(len(self.history), self.max_history_steps))
         # 仅在 observe 收到实际环境结果后提交，模型不能伪造 Observation。
-        self.pending = {"step": observation["step"], "observation": context["observation"],
-                        "thought": thought, "action": actions[action_id]}
-        return action_id
+        if action in observation["actions"]:
+            self.pending = {"step": observation["step"], "observation": context["observation"],
+                            "thought": thought, "action": action}
+        return action
 
     def observe(self, transition: Mapping[str, Any]) -> None:
         if self.pending is None:

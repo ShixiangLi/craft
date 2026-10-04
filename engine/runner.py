@@ -1,5 +1,6 @@
 """统一回合闭环；每步决策可包含多次模型调用。"""
 import time
+from agents.base import AgentFinished
 from agents.llm_agent import LLMBaseAgent
 from modules.common.llm import ModelCallBudgetExceeded
 from engine.evaluator import task_succeeded
@@ -27,6 +28,11 @@ def run_episode(agent: LLMBaseAgent, environment, config: dict, *, seed: int,
             break
         try:
             action = agent.act(observation)
+        except AgentFinished as finished:
+            reason = "agent_completed" if finished.completed else "agent_failed"
+            recorder.record_step({"type": "agent_stopped", "step": steps,
+                                  "stop_reason": reason, "decision": agent.last_decision})
+            break
         except ModelCallBudgetExceeded:
             reason = "max_model_calls"
             recorder.record_step({"type": "budget_exhausted", "step": steps,

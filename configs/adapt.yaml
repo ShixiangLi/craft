@@ -1,0 +1,45 @@
+# ADaPT 核心机制的 Crafter 适配；连续世界保留失败尝试造成的状态变化。
+# 根深度为 1；max_depth=1 时只有执行器，不调用规划器。
+# 每次执行尝试独立计数，包含动作、task_completed 和 task_failed 模型调用。
+experiment_name: adapt
+agent:
+  name: adapt
+  params:
+    max_depth: 3
+    max_executor_calls: 20
+    max_subtasks: 5
+    max_history_steps: 16
+  prompts:
+    system: prompts/adapt/system.txt
+    step: prompts/adapt/step.txt
+    planner: prompts/adapt/planner.txt
+    examples: prompts/react/examples.txt
+    rules: prompts/common/crafter_rules.txt
+environment:
+  name: crafter
+  observation: local_semantic
+  params: {}
+task:
+  description: Collect at least one unit of diamond while staying alive.
+  success_condition:
+    achievement: collect_diamond
+    count: 1
+model:
+  provider: auto  # 按 API 地址识别；可显式指定 ollama、deepseek、openai
+  base_url: http://localhost:11434
+  name: qwen3.8:latest  # 切换服务只需修改 base_url、name 和 api_key（如有）
+  api_key: ""
+  api_key_env: null  # 可填环境变量名，代替明文 api_key
+  timeout: 120
+  think: true
+  params:
+    temperature: 0
+    num_predict: 32768
+    num_ctx: 65536
+experiment:
+  seeds:
+  - 0
+  episodes_per_seed: 1
+  max_steps: 500
+  max_model_calls: 4500
+output_dir: outputs/adapt

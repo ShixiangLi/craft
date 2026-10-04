@@ -3,6 +3,13 @@ from abc import ABC, abstractmethod
 from typing import Any, Mapping
 
 
+class AgentFinished(Exception):
+    """智能体主动结束规划；completed 是自报结果，不代替环境评测。"""
+    def __init__(self, completed: bool):
+        self.completed = completed
+        super().__init__("agent_completed" if completed else "agent_failed")
+
+
 class BaseAgent(ABC):
     @abstractmethod
     def reset(self, task: Mapping[str, Any], *, seed: int) -> None:
@@ -11,7 +18,7 @@ class BaseAgent(ABC):
 
     @abstractmethod
     def act(self, observation: Mapping[str, Any]) -> int:
-        """根据观测返回一个环境动作编号。"""
+        """返回环境动作编号；主动结束可抛出 AgentFinished。"""
         raise NotImplementedError
 
     @abstractmethod

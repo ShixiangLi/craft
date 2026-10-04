@@ -8,6 +8,7 @@ import yaml
 from agents.naive import NaiveAgent
 from agents.react import ReActAgent
 from agents.spring import SpringAgent
+from agents.adapt import AdaptAgent
 from agents.llm_agent import LLMBaseAgent
 from engine.environment import create_environment
 from engine.evaluator import aggregate_results
@@ -20,7 +21,7 @@ from utils.io import write_json
 
 
 def create_agent(config: dict) -> LLMBaseAgent:
-    methods = {"naive": NaiveAgent, "react": ReActAgent, "spring": SpringAgent}
+    methods = {"naive": NaiveAgent, "react": ReActAgent, "spring": SpringAgent, "adapt": AdaptAgent}
     name = config["agent"]["name"]
     if name not in methods:
         raise ValueError(f"未知智能体: {name}")

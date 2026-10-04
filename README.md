@@ -1,7 +1,7 @@
 # Crafter 长程任务实验
 
-项目实现 naive、ReAct 与 SPRING 三种策略，复用同一 Crafter 环境、局部语义
-观测、统一模型客户端、预算检查和实验记录。ReAct / SPRING 的论文来源、固定
+项目实现 naive、ReAct、SPRING 与 ADaPT 四种策略，复用同一 Crafter 环境、局部语义
+观测、统一模型客户端、预算检查和实验记录。各方法的论文来源、固定
 代码版本、许可与复现边界见 [复现说明](docs/reproduction_sources.md)。
 
 ## 运行
@@ -16,10 +16,12 @@ ollama list
 .venv/bin/python -m scripts.run_experiment --config configs/naive.yaml
 .venv/bin/python -m scripts.run_experiment --config configs/react.yaml
 .venv/bin/python -m scripts.run_experiment --config configs/spring.yaml
+.venv/bin/python -m scripts.run_experiment --config configs/adapt.yaml
 
 # 短程验证；也可用 --model / --base-url / --provider 覆盖模型配置
 .venv/bin/python -m scripts.run_experiment --config configs/react.yaml --max-steps 2
 .venv/bin/python -m scripts.run_experiment --config configs/spring.yaml --max-steps 2
+.venv/bin/python -m scripts.run_experiment --config configs/adapt.yaml --max-steps 2
 ```
 
 新建 Python 环境时，可用 `python -m pip install -r requirements.txt` 安装已
@@ -30,7 +32,7 @@ ollama list
 ## 模型接口配置
 
 配置仍按智能体划分：`configs/naive.yaml`、`configs/react.yaml`、
-`configs/spring.yaml`。修改选定文件中的 `model` 即可切换模型后端，运行命令
+`configs/spring.yaml`、`configs/adapt.yaml`。修改选定文件中的 `model` 即可切换模型后端，运行命令
 和智能体实现无需改变。默认配置连接本地 Ollama：
 
 ```yaml
@@ -86,13 +88,14 @@ model:
   接口使用 JSON object 模式，并在提示词中描述 schema，随后执行项目已有的
   本地解析校验。这不代表服务端强制执行该 schema，兼容服务需支持 JSON 模式。
 
-## 三种策略
+## 四种策略
 
 | 策略 | 每步模型调用 | 保留的策略状态 |
 | --- | --- | --- |
 | naive | 1 | 当前观测、最终目标、上一步反馈 |
 | ReAct | 1 | 可选显式 thought、动作和真实观测组成的交互历史 |
 | SPRING | 9 | 固定论文知识 C、最近两帧观测、本轮九问 DAG 答案 |
+| ADaPT | 可变：执行动作通常 1 次，另有状态判定和失败后的规划 | 递归任务路径、AND/OR 计划、当前执行尝试的 ReAct 历史 |
 
 ReAct 将显式思考与一个动作合并为一次结构化生成；默认保留完整回合历史。
 `agent.params.max_history_steps` 为正整数时，只向模型提供最近若干个完整交互，
@@ -106,9 +109,26 @@ SPRING 每步按原始依赖图分别查询 q1–q8 和 qa；每问只获得直�
 发布的离线提取资产，不另写人工规则取代；其中原有错误也保留并注明。完整
 来源与差异见 [SPRING 资产说明](prompts/spring/SOURCES.txt)。
 
-当前三种配置保留本地 `qwen3.8:latest`、`think: true` 及已有预算参数。
+ADaPT 先用 ReAct 执行器直接尝试当前任务，只有执行器报告失败或用尽本次调用
+预算时才分解。规划器生成子任务及 AND/OR 表达式：AND 按顺序执行并在失败时
+停止；OR 按顺序尝试并在成功时停止；两者可以嵌套。子任务沿用同一规则递归。
+完成子计划后直接返回组合结果，不自动重新执行父任务或重规划。
+
+`agent.params.max_depth` 包含根层（根为 1），设为 1 时不会调用规划器；
+`max_executor_calls` 限制一次执行尝试的模型调用数，包含状态判定调用；
+`max_subtasks` 限制一次分解的子任务数。各尝试的历史独立，
+`max_history_steps` 只裁剪当前尝试的真实交互，不删除父任务关系。
+示例分别为 3 层、20 次、5 个子任务和 16 步历史。
+
+子任务由模型返回 `task_completed` / `task_failed` 自判；这些信号不进入游戏，
+根任务声明完成也不会替代环境成就评分。Crafter 中失败后的移动、消耗和伤害
+继续保留，沿用官方 TextCraft 连续状态行为，不使用 ALFWorld/WebShop 的
+重置与成功动作回放。提示词共享 ReAct 的游戏规则与原创示例，未硬编码钻石
+子任务树。具体来源和适配见 [ADaPT 资产说明](prompts/adapt/SOURCES.txt)。
+
+当前四种配置保留本地 `qwen3.8:latest`、`think: true` 及已有预算参数。
 对于支持此设置的服务，`think: false` 关闭的是模型内部思考，ReAct 的显式
-thought 和 SPRING 的节点问答仍正常执行。三者知识、演示和调用成本不同，不应仅凭一次
+thought、SPRING 的节点问答和 ADaPT 的规划仍正常执行。各方法知识、演示和调用成本不同，不应仅凭一次
 运行将成绩差异归因于推理结构。短程连通性测试也不代表复现原论文分数。
 
 ## 配置与停止条件
@@ -117,13 +137,17 @@ thought 和 SPRING 的节点问答仍正常执行。三者知识、演示和调�
 `output_dir`。提示词及输出路径相对项目根目录解析；`--config` 相对工作目录。
 
 - `task.description` 为最终目标；`success_condition` 使用环境成就名和计数。
-  当前 ReAct / SPRING 示例目标为收集钻石，成功即结束。设为 `null` 可取消
+  当前 ReAct / SPRING / ADaPT 示例目标为收集钻石，成功即结束。设为 `null` 可取消
   目标提前终止，此时 `success` 为 `null`，不能当作成功率。
 - `experiment.max_steps` 是每回合环境步数上限；`max_model_calls` 是实际 HTTP
   模型调用次数上限。SPRING 不足九次余额时停止，不执行半成品决策。其示例
   500 步 / 4500 次调用刚好容纳全部九问决策。
 - 角色死亡、目标完成、达到任一预算都会结束回合。相同 seed 的回合会重建
   相同初始世界，并重置智能体状态和调用计数；不同模型/硬件不保证输出一致。
+- ADaPT 控制器返回时也会正常结束，`stop_reason` 为 `agent_completed` 或
+  `agent_failed`。其中 `agent_completed` 只是模型和子计划的判断，`success`
+  仍取决于环境真实成就；两者可以不一致。规划与判定调用计入全局模型预算，
+  但不会增加环境步数。
 - `model.params` 按所选服务适配，具体映射见上文。Ollama 的 `num_predict`
   限制思考与最终输出，`num_ctx` 控制上下文容量。开启模型思考可能显著增加
   token 和耗时。模型返回 `done_reason: length` 或 `finish_reason: length`
@@ -135,7 +159,7 @@ thought 和 SPRING 的节点问答仍正常执行。三者知识、演示和调�
 agents/
   base.py                环境交互接口
   llm_agent.py           共享生命周期、观测文本、模型调用和反馈
-  naive.py / react.py / spring.py
+  naive.py / react.py / spring.py / adapt.py
 modules/
   common/llm.py          自由文本 / JSON 请求、计数、硬预算、逐调用记录
   common/model_config.py  接口识别、模型配置校验和配置密钥脱敏
@@ -143,6 +167,7 @@ modules/
   common/observation.py  统一局部观测描述
   react/components.py   ReAct 输出与轨迹上下文
   spring/components.py  SPRING 固定 DAG 和直接父问答构造
+  adapt/components.py   ADaPT 输出协议和 AND/OR 计划解析
 configs/                 每种策略的 YAML
 prompts/                 公用规则和各策略提示词、示例、论文知识
 scripts/run_experiment.py  统一启动入口

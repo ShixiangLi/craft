@@ -1,0 +1,43 @@
+ADaPT Crafter prompt provenance
+
+Method: Prasad et al., ADaPT: As-Needed Decomposition and Planning with Language Models.
+Paper: https://arxiv.org/abs/2311.05772v2
+Published version: https://aclanthology.org/2024.findings-naacl.264/
+Relevant sections: 3.1-3.3; Appendix A (Algorithm 1 and controller); Appendix B (mixed logic).
+
+Official implementation: https://github.com/archiki/ADaPT
+Verified commit: ecdc4ab0030b4be9be122622d8ea78f8c59c44c4
+Controller: run_textcraft.py, plan_and_run; contrast run_alfworld.py and run_webshop.py.
+Executor: run_textcraft.py, textcraft_run.
+License: official repository MIT; https://github.com/archiki/ADaPT/blob/ecdc4ab0030b4be9be122622d8ea78f8c59c44c4/LICENSE
+
+These prompts are original Crafter adaptations, not copied paper prompts or demonstrations.
+They reuse this project's prompts/common/crafter_rules.txt and prompts/react/examples.txt.
+The original benchmark environments were ALFWorld, WebShop, and TextCraft, not Crafter.
+
+Preserved mechanism:
+- Try the executor first; only its failure or per-attempt call budget triggers decomposition.
+- Executor self-reports task completion/failure; no hard-coded subtask reward oracle.
+- Recursively combine subtasks with ordered, short-circuit AND/OR, including mixed expressions.
+- Root depth is 1; depth 1 is executor-only. Like official code, no planner call at maximum depth.
+- Logical grouping does not add decomposition depth. Only a new planner decomposition does.
+- Return the combined child outcome directly; no automatic parent re-execution or plan retry.
+
+Crafter adaptations:
+- Current local semantic observation, one native environment action per yielded action.
+- JSON thought/action output; task_completed/task_failed are non-environment controller signals.
+- JSON planner output plus an index-based AND/OR expression instead of textual Step labels.
+- A fresh executor history for each task attempt, optionally capped by max_history_steps.
+- max_executor_calls includes action and completion/failure calls; all calls also share the
+  experiment-level model budget. Max subtasks bounds one planner output.
+- Propagate the current observed state, root goal, task path, and failure context; no generated
+  observations or game-state snapshots. Prompts are supplied to the same configured model backend.
+- Preserve the live world after failures, like the official TextCraft controller. ALFWorld and
+  WebShop instead reset and replay successful action checkpoints; this project does not emulate that.
+- The experiment's actual final achievement condition determines reported success. A root LLM
+  claim only produces agent_completed/agent_failed termination and does not override that score.
+- No fixed diamond technology tree, learned skill library, extra success verifier, automatic
+  compaction, periodic replanning, or recovery controller is added.
+
+This reproduces the core control mechanism, not the paper's model, full experimental settings,
+benchmark scores, or domain-specific patience heuristics for repeated invalid actions.
