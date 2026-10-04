@@ -1,0 +1,19 @@
+OBSERVATIONS
+Trust the latest observation. A reward of zero alone does not mean an action failed.
+Map coordinates are relative to the player at (dx=0, dy=0). North/up decreases dy; south/down increases dy; west/left decreases dx; east/right increases dx. Each row has a fixed dy and columns follow the listed dx values. Only the immediately adjacent tile in the facing direction is the target of do and place actions. Diagonal or distant resources cannot be interacted with directly. The view is local, so a resource missing from the map may still exist elsewhere.
+Health, food, drink, and energy range from 0 to 9. Inventory counts are current possessions; achievement counts record past events and do not mean the resource is still in your inventory. Omitted inventory items and achievements have count zero. The semantic label plant does not reveal ripeness.
+
+ACTIONS AND CONDITIONS
+- noop: advance one game step without a voluntary action.
+- move_left / move_right / move_up / move_down: attempt one step west / east / north / south. The attempt sets your facing direction even if an obstacle blocks movement. Facing a tree is not the same as collecting it.
+- do: interact with the adjacent tile you face. A tree yields wood without a tool; water restores drink; grass sometimes yields a sapling. Stone and coal require a wood pickaxe, iron requires a stone pickaxe, and diamond requires an iron pickaxe. If a creature occupies that tile, do interacts with or attacks the creature instead. Defeating a cow or eating a ripe plant restores food. Combat may require multiple attacks.
+- sleep: begin sleeping if energy is below maximum. While sleeping, the environment overrides requested actions until energy is full or damage wakes you. Sleep restores energy over time, not instantly.
+- place_stone: spend 1 stone to place stone on an unoccupied grass, sand, path, water, or lava tile in front.
+- place_table: spend 2 wood to place a table on unoccupied grass, sand, or path in front.
+- place_furnace: spend 4 stone to place a furnace on unoccupied grass, sand, or path in front.
+- place_plant: spend 1 sapling to plant on unoccupied grass in front.
+- make_wood_pickaxe / make_wood_sword: spend 1 wood; a table must be within one tile, including diagonals.
+- make_stone_pickaxe / make_stone_sword: spend 1 wood and 1 stone; a table must be within one tile, including diagonals.
+- make_iron_pickaxe / make_iron_sword: spend 1 wood, 1 coal, and 1 iron; both a table and a furnace must be within one tile, including diagonals.
+Tools are selected automatically when interacting; there is no equip action. Crafting consumes materials but not workstations. An action name can be valid even when its resource or spatial requirements are not met; such an attempt may have no useful effect. Walking into lava kills the player. Food, drink, and energy depletion endanger health; enemies can also damage you.
+

@@ -1,0 +1,67 @@
+SPRING reproduction sources and adaptations
+
+Algorithm: Yue Wu et al., SPRING: Studying the Paper and Reasoning to Play Games
+https://arxiv.org/abs/2305.15486
+
+Question text and dependency graph:
+https://github.com/Holmeswww/SPRING/blob/c0369b9127ab9ec63797797a3952be9e119334e1/GPT_Actor_Chat.ipynb
+The nine questions and direct dependencies are preserved. Root questions were
+implicit dependency leaves in the notebook; they are explicit q1 and q2 here.
+The fixed topological traversal removes Python set iteration nondeterminism.
+Each question receives only its direct parents' answers from the current step,
+the paper knowledge, and the latest two observations. No answers persist across
+steps. The first decision uses the reset observation instead of stepping noop.
+
+paper_context.txt:
+SmartPlay, Microsoft and contributors, commit
+9dec5f2247da0dc88a47fe3daf3fb4fa02629b89
+https://github.com/microsoft/SmartPlay/blob/9dec5f2247da0dc88a47fe3daf3fb4fa02629b89/src/smartplay/crafter/assets/crafter_ctxt.pkl
+The upstream file contains the Crafter-paper knowledge extracted by
+text-davinci-003 for SPRING. We serialize its string to UTF-8 text without
+changing its content. Inaccurate statements and typos are deliberately retained;
+this is the released paper-derived knowledge, not a corrected game manual.
+We do not regenerate the extraction using the local model.
+SmartPlay's license is Creative Commons Attribution 4.0 International:
+https://creativecommons.org/licenses/by/4.0/
+https://github.com/microsoft/SmartPlay/blob/9dec5f2247da0dc88a47fe3daf3fb4fa02629b89/LICENSE
+This material is supplied AS IS, without warranties; see the license above.
+Knowledge text SHA-256: de5b85b700a55ca1c120ec82f154a1f9360e9af386b3ce36de5d79c59038b5de
+
+Project adaptations:
+- Local Ollama model replaces the paper's GPT-4.
+- The shared project's local semantic grid and last action replace SmartPlay's text
+  observation; no privileged world state is added. Recent observations remain a
+  two-frame window. Coordinate and API action naming are explained in system.txt.
+- The configured episode goal and optional success condition are explicit.
+- q1 through q8 produce free text. qa requests a JSON object with an action from
+  the environment's action list. Invalid output fails explicitly; the notebook's
+  substring matcher and fallback Do action are not retained.
+- Every node is a separate, budgeted model call. Environment steps occur only
+  after all nine nodes complete; partial decisions never advance the game.
+  If fewer than nine calls remain, the decision stops before calling the model.
+These are method-level reproductions under this project's environment/model
+protocol. Results must not be described as reproducing the original paper score.
+
+MIT notice for the original SPRING question graph and prompt structure:
+
+MIT License
+
+Copyright (c) 2023 Yue Wu
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

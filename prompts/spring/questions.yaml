@@ -1,0 +1,11 @@
+# Original question text from Holmeswww/SPRING GPT_Actor_Chat.ipynb.
+# The original typo "breifly" is retained. Source/license: SOURCES.txt.
+q1: "List objects in the current observation. For each object, breifly answer what resource it provides and its requirement."
+q2: "What was the last action taken by the player?"
+q3: "For each object in the list, are the requirements met for interaction?"
+q4: "Did the last player action succeed? If not, why?"
+q5: "List top 3 sub-tasks the player should follow. Indicate their priority out of 5."
+q6: "What are the requirements for the top sub-task? What should the player do first?"
+q7: "List top 5 actions the player should take and the requirement for each action. Choose ONLY from the list of all actions. Indicate their priority out of 5."
+q8: "For each action in the list, are the requirements met?"
+qa: "Choose the best executable action from above."

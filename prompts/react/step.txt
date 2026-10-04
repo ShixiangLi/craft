@@ -1,1 +1,14 @@
-TODO: react 的 step 提示词，待算法设计确认后编写。
+FINAL GOAL
+$goal
+Environment success condition: $success_condition
+
+COMPLETED INTERACTIONS (oldest first)
+$history
+
+CURRENT OBSERVATION
+$observation
+
+LATEST ENVIRONMENT FEEDBACK
+$previous
+
+Continue the trajectory with optional useful reasoning and exactly one immediate action. Return only {"thought": "...", "action": "..."}. Routine actions may use an empty thought. Do not invent the next observation.

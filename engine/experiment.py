@@ -1,4 +1,4 @@
-"""第一版实验组装，不引入注册器或插件系统。"""
+"""统一实验组装；方法通过相同环境、调用预算和记录流程运行。"""
 from datetime import datetime, timezone
 from importlib.metadata import version
 from pathlib import Path
@@ -6,6 +6,9 @@ from uuid import uuid4
 import yaml
 
 from agents.naive import NaiveAgent
+from agents.react import ReActAgent
+from agents.spring import SpringAgent
+from agents.llm_agent import LLMBaseAgent
 from engine.environment import create_environment
 from engine.evaluator import aggregate_results
 from engine.recorder import ExperimentRecorder
@@ -15,10 +18,12 @@ from utils.config import validate_config
 from utils.io import write_json
 
 
-def create_agent(config: dict) -> NaiveAgent:
-    if config["agent"]["name"] != "naive":
-        raise ValueError("第一版仅实现 naive")
-    return NaiveAgent(config["agent"], LLMClient(config["model"]))
+def create_agent(config: dict) -> LLMBaseAgent:
+    methods = {"naive": NaiveAgent, "react": ReActAgent, "spring": SpringAgent}
+    name = config["agent"]["name"]
+    if name not in methods:
+        raise ValueError(f"未知智能体: {name}")
+    return methods[name](config["agent"], LLMClient(config["model"]))
 
 
 def run_experiment(config: dict) -> dict:

@@ -1,15 +1,18 @@
-"""单回合闭环；第一版 naive 每次决策恰好调用一次模型。"""
+"""统一回合闭环；每步决策可包含多次模型调用。"""
 import time
-from agents.naive import NaiveAgent
+from agents.llm_agent import LLMBaseAgent
+from modules.common.llm import ModelCallBudgetExceeded
 from engine.evaluator import task_succeeded
 from engine.recorder import ExperimentRecorder
 
 
-def run_episode(agent: NaiveAgent, environment, config: dict, *, seed: int,
+def run_episode(agent: LLMBaseAgent, environment, config: dict, *, seed: int,
                 recorder: ExperimentRecorder) -> dict:
     start = time.monotonic()
     limits = config["experiment"]
     agent.reset(config["task"], seed=seed)
+    agent.llm.max_calls = limits["max_model_calls"]
+    agent.llm.on_call = recorder.record_model_call
     observation = environment.reset(seed=seed)
     recorder.record_step({"type": "reset", "seed": seed, "observation": observation})
     total_reward = 0.0
@@ -24,6 +27,11 @@ def run_episode(agent: NaiveAgent, environment, config: dict, *, seed: int,
             break
         try:
             action = agent.act(observation)
+        except ModelCallBudgetExceeded:
+            reason = "max_model_calls"
+            recorder.record_step({"type": "budget_exhausted", "step": steps,
+                                  "stop_reason": reason, "decision": agent.last_decision})
+            break
         except (Exception, KeyboardInterrupt) as exc:
             recorder.record_step({"type": "error", "step": steps,
                                   "error": f"{type(exc).__name__}: {exc}",

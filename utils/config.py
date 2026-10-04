@@ -1,4 +1,4 @@
-"""读取并校验第一版 naive 实验 YAML；相对路径以项目根目录为准。"""
+"""读取并校验实验 YAML；相对路径以项目根目录为准。"""
 from copy import deepcopy
 from pathlib import Path
 import yaml
@@ -9,8 +9,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def validate_config(config: dict) -> dict:
     config = deepcopy(config)
-    if config.get("agent", {}).get("name") != "naive":
-        raise ValueError("第一版仅实现 agent.name: naive")
+    agent_name = config.get("agent", {}).get("name")
+    if agent_name not in ("naive", "react", "spring"):
+        raise ValueError("agent.name 必须是 naive、react 或 spring")
     if config.get("model", {}).get("provider") != "ollama":
         raise ValueError("model.provider 必须是 ollama")
     if not isinstance(config["model"].get("name"), str) or not config["model"]["name"].strip():
@@ -39,7 +40,17 @@ def validate_config(config: dict) -> dict:
         if type(count) is not int or count < 1:
             raise ValueError("success_condition.count 必须是正整数")
     prompts = config["agent"]["prompts"]
-    for key in ("system", "step"):
+    required_prompts = {"system", "step"}
+    if agent_name == "react":
+        required_prompts |= {"rules", "examples"}
+        window = config["agent"].get("params", {}).get("max_history_steps")
+        if window is not None and (type(window) is not int or window <= 0):
+            raise ValueError("agent.params.max_history_steps 必须为 null 或正整数")
+    elif agent_name == "spring":
+        required_prompts |= {"questions", "knowledge"}
+    if not required_prompts <= prompts.keys():
+        raise ValueError(f"缺少提示词: {sorted(required_prompts - prompts.keys())}")
+    for key in prompts:
         path = Path(prompts[key])
         path = path if path.is_absolute() else PROJECT_ROOT / path
         if not path.is_file():
@@ -50,6 +61,10 @@ def validate_config(config: dict) -> dict:
     timeout = config["model"].get("timeout", 120)
     if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0:
         raise ValueError("model.timeout 必须大于零")
+    for name in ("num_ctx", "num_predict"):
+        value = config["model"].get("params", {}).get(name)
+        if value is not None and (type(value) is not int or value <= 0):
+            raise ValueError(f"model.params.{name} 必须是正整数")
     return config
 
 

@@ -1,1 +1,5 @@
-TODO: spring 的 step 提示词，待算法设计确认后编写。
+Goal of this episode: $goal
+Experiment success condition: $success_condition
+
+Most recent two steps of the player's in-game observation (only one at episode start):
+$observations

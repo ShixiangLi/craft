@@ -6,7 +6,7 @@ from utils.config import load_config
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Crafter naive + Ollama 实验")
+    parser = argparse.ArgumentParser(description="Crafter agent + Ollama 实验")
     parser.add_argument("--config", default="configs/naive.yaml")
     parser.add_argument("--model", help="覆盖 model.name")
     parser.add_argument("--base-url", help="覆盖 Ollama 服务地址")

@@ -1,28 +1,39 @@
-# 配置草案：null 表示待确定的参数。
-experiment_name: react_example
+# 策略机制复现：本地模型、统一语义观测和指定目标；并非论文原模型/分数复现。
+# think=false 关闭模型私有思考；ReAct 的显式 thought 或 SPRING 节点问答仍保留。
+# max_history_steps=null 保留完整回合；长回合需足够 num_ctx，设置窗口则属于明确的历史截断适配。
+experiment_name: react_ollama
 agent:
   name: react
-  params: {}
+  params:
+    max_history_steps: null
   prompts:
     system: prompts/react/system.txt
     step: prompts/react/step.txt
-modules: {}
+    examples: prompts/react/examples.txt
+    rules: prompts/common/crafter_rules.txt
 environment:
   name: crafter
+  observation: local_semantic
   params: {}
 task:
-  description: null
-  success_condition: null
+  description: Collect at least one unit of diamond while staying alive.
+  success_condition:
+    achievement: collect_diamond
+    count: 1
 model:
-  provider: null
-  name: null
-  params: {}
+  provider: ollama
+  base_url: http://localhost:11434
+  name: qwen3.8:latest
+  timeout: 120
+  think: true
+  params:
+    temperature: 0
+    num_predict: 32768
+    num_ctx: 65536
 experiment:
   seeds:
   - 0
-  - 1
-  - 2
   episodes_per_seed: 1
-  max_steps: null
-  max_model_calls: null
+  max_steps: 500
+  max_model_calls: 4500
 output_dir: outputs/react

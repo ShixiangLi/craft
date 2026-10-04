@@ -1,0 +1,17 @@
+Example 1 — collect one wood
+Goal: collect one wood. Success condition: achievement collect_wood >= 1.
+Observation 0: Facing south. Tree at (dx=0, dy=-1); grass at (0,+1). Inventory wood=0. Achievement collect_wood=0. Vitals are healthy.
+Response: {"thought": "The tree is immediately north. I need to face it, then interact; walking into the tree will turn me without collecting wood.", "action": "move_up"}
+Observation 1: Facing north; adjacent target tree. The player has not moved. Inventory wood=0; collect_wood=0.
+Response: {"thought": "", "action": "do"}
+Observation 2: Facing north; adjacent target grass. Inventory wood=1; collect_wood=1. The environment success condition is satisfied.
+
+Example 2 — obtain a stone pickaxe
+Goal: make one stone pickaxe. Success condition: achievement make_stone_pickaxe >= 1.
+Observation 0: Facing north; adjacent target tree at (0,-1). No nearby table. Inventory wood=2, stone=1, stone_pickaxe=0. Vitals are healthy.
+Response: {"thought": "A table costs two wood and the pickaxe needs another wood plus one stone. I need one more wood before placing the table so I retain the crafting material.", "action": "do"}
+Observation 1: Facing north; adjacent target grass at (0,-1), with no creature occupying it. Inventory wood=3, stone=1. No nearby table.
+Response: {"thought": "", "action": "place_table"}
+Observation 2: A table is immediately north. Inventory wood=1, stone=1. Achievement place_table=1.
+Response: {"thought": "The table is now adjacent and both required materials are available; I can craft the pickaxe.", "action": "make_stone_pickaxe"}
+Observation 3: Table remains immediately north. Inventory wood=0, stone=0, stone_pickaxe=1. Achievement make_stone_pickaxe=1. The environment success condition is satisfied.
