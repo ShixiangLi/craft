@@ -21,9 +21,11 @@ task:
     achievement: collect_diamond
     count: 1
 model:
-  provider: ollama
+  provider: auto  # 按 API 地址识别；可显式指定 ollama、deepseek、openai
   base_url: http://localhost:11434
-  name: qwen3.8:latest
+  name: qwen3.8:latest  # 切换服务只需修改 base_url、name 和 api_key（如有）
+  api_key: ""
+  api_key_env: null  # 可填环境变量名，代替明文 api_key
   timeout: 120
   think: true
   params:

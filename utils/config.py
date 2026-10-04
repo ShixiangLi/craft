@@ -4,6 +4,8 @@ from pathlib import Path
 import yaml
 from crafter import constants
 
+from modules.common.model_config import normalize_model_config
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -12,10 +14,7 @@ def validate_config(config: dict) -> dict:
     agent_name = config.get("agent", {}).get("name")
     if agent_name not in ("naive", "react", "spring"):
         raise ValueError("agent.name 必须是 naive、react 或 spring")
-    if config.get("model", {}).get("provider") != "ollama":
-        raise ValueError("model.provider 必须是 ollama")
-    if not isinstance(config["model"].get("name"), str) or not config["model"]["name"].strip():
-        raise ValueError("请指定 model.name（ollama list 中的模型名）")
+    config["model"] = normalize_model_config(config.get("model", {}))
     env = config.get("environment", {})
     if env.get("name") != "crafter" or env.get("observation") != "local_semantic":
         raise ValueError("仅支持 crafter / local_semantic 观测")
@@ -58,13 +57,6 @@ def validate_config(config: dict) -> dict:
         prompts[key] = str(path.resolve())
     output = Path(config["output_dir"])
     config["output_dir"] = str(output if output.is_absolute() else PROJECT_ROOT / output)
-    timeout = config["model"].get("timeout", 120)
-    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0:
-        raise ValueError("model.timeout 必须大于零")
-    for name in ("num_ctx", "num_predict"):
-        value = config["model"].get("params", {}).get(name)
-        if value is not None and (type(value) is not int or value <= 0):
-            raise ValueError(f"model.params.{name} 必须是正整数")
     return config
 
 

@@ -1,13 +1,14 @@
 # Crafter 长程任务实验
 
 项目实现 naive、ReAct 与 SPRING 三种策略，复用同一 Crafter 环境、局部语义
-观测、Ollama 客户端、预算检查和实验记录。ReAct / SPRING 的论文来源、固定
+观测、统一模型客户端、预算检查和实验记录。ReAct / SPRING 的论文来源、固定
 代码版本、许可与复现边界见 [复现说明](docs/reproduction_sources.md)。
 
 ## 运行
 
-在项目根目录使用已配置的 Python 3.10 虚拟环境。先确保本地 Ollama 服务已
-运行且配置指定的模型已安装；代码不会自动启动服务或下载模型。
+在项目根目录使用已配置的 Python 3.10 虚拟环境。使用本地 Ollama 时，先确保
+服务已运行且配置指定的模型已安装；代码不会自动启动服务或下载模型。
+使用远程 API 时，直接在对应智能体的配置中填写地址、模型名和密钥。
 
 ```bash
 ollama list
@@ -16,14 +17,74 @@ ollama list
 .venv/bin/python -m scripts.run_experiment --config configs/react.yaml
 .venv/bin/python -m scripts.run_experiment --config configs/spring.yaml
 
-# 短程验证；也可用 --model / --base-url 覆盖模型和服务地址
+# 短程验证；也可用 --model / --base-url / --provider 覆盖模型配置
 .venv/bin/python -m scripts.run_experiment --config configs/react.yaml --max-steps 2
 .venv/bin/python -m scripts.run_experiment --config configs/spring.yaml --max-steps 2
 ```
 
 新建 Python 环境时，可用 `python -m pip install -r requirements.txt` 安装已
-验证的依赖。请求通过 [Ollama /api/chat](https://docs.ollama.com/api/chat)
-发送，直接连接配置地址，不使用 shell 的 HTTP 代理；每次调用均不自动重试。
+验证的依赖。客户端支持 [Ollama /api/chat](https://docs.ollama.com/api/chat)、
+[DeepSeek API](https://api-docs.deepseek.com/) 和兼容 OpenAI Chat Completions
+的接口，直接连接配置地址，不使用 shell 的 HTTP 代理；每次调用均不自动重试。
+
+## 模型接口配置
+
+配置仍按智能体划分：`configs/naive.yaml`、`configs/react.yaml`、
+`configs/spring.yaml`。修改选定文件中的 `model` 即可切换模型后端，运行命令
+和智能体实现无需改变。默认配置连接本地 Ollama：
+
+```yaml
+model:
+  provider: auto
+  base_url: http://localhost:11434
+  name: qwen3.8:latest
+  api_key: ""
+  api_key_env: null
+  timeout: 120
+  think: true
+  params:
+    temperature: 0
+    num_predict: 32768
+```
+
+例如，在同一个智能体配置中改用 DeepSeek：
+
+```yaml
+model:
+  provider: auto
+  base_url: https://api.deepseek.com
+  name: deepseek-flash
+  api_key: "填写你的 API Key"
+  api_key_env: null
+  timeout: 120
+  think: true
+  params:
+    temperature: 0
+    num_predict: 32768
+```
+
+也可以令 `api_key: ""`、`api_key_env: DEEPSEEK_API_KEY`，从同名环境变量读取
+密钥。实验目录中保存的配置会去除明文密钥，请求日志不保存鉴权头；填写了
+明文密钥的原始配置文件仍包含密钥。示例模型名依据
+[DeepSeek 官方模型更新](https://api-docs.deepseek.com/news/news260424/)；
+实际使用时填写账号可用的模型名。
+
+`provider: auto` 根据 URL 识别协议：默认端口 `11434` 或 `/api/chat` 路径
+识别为 Ollama，官方 DeepSeek 域名识别为 DeepSeek，其他地址采用 OpenAI
+兼容协议。Ollama 使用非标准端口时请显式设置 `provider: ollama`；DeepSeek
+通过其他域名的代理访问时请设置 `provider: deepseek`，以保留其思考模式适配。
+显式 `provider: openai` 可连接其他兼容服务，是否需要密钥由该服务决定。
+
+模型参数由后端适配：
+
+- Ollama 保持原生 `options` 和 `think`，回合 seed 传入其 `options.seed`。
+- DeepSeek 和通用 OpenAI 兼容接口将 `num_predict` 映射为 `max_tokens`，
+  忽略仅供 Ollama 使用的 `num_ctx`；也可直接配置 `max_tokens`。
+- DeepSeek 将 `think` 转为 `thinking` 参数；通用 OpenAI 兼容接口不发送
+  `think`，避免将 Ollama 或 DeepSeek 的扩展参数传给其他服务。
+- 结构化动作在 Ollama 中使用原生 schema；DeepSeek 和通用 OpenAI 兼容
+  接口使用 JSON object 模式，并在提示词中描述 schema，随后执行项目已有的
+  本地解析校验。这不代表服务端强制执行该 schema，兼容服务需支持 JSON 模式。
 
 ## 三种策略
 
@@ -45,9 +106,9 @@ SPRING 每步按原始依赖图分别查询 q1–q8 和 qa；每问只获得直�
 发布的离线提取资产，不另写人工规则取代；其中原有错误也保留并注明。完整
 来源与差异见 [SPRING 资产说明](prompts/spring/SOURCES.txt)。
 
-ReAct 与 SPRING 配置默认使用本地 `qwen3.8:latest`、`think: false`。关闭的是
-模型内部思考，ReAct 的显式 thought 和 SPRING 的节点问答仍正常执行。
-`naive.yaml` 保留用户已有参数。三者知识、演示和调用成本不同，不应仅凭一次
+当前三种配置保留本地 `qwen3.8:latest`、`think: true` 及已有预算参数。
+对于支持此设置的服务，`think: false` 关闭的是模型内部思考，ReAct 的显式
+thought 和 SPRING 的节点问答仍正常执行。三者知识、演示和调用成本不同，不应仅凭一次
 运行将成绩差异归因于推理结构。短程连通性测试也不代表复现原论文分数。
 
 ## 配置与停止条件
@@ -63,10 +124,10 @@ ReAct 与 SPRING 配置默认使用本地 `qwen3.8:latest`、`think: false`。�
   500 步 / 4500 次调用刚好容纳全部九问决策。
 - 角色死亡、目标完成、达到任一预算都会结束回合。相同 seed 的回合会重建
   相同初始世界，并重置智能体状态和调用计数；不同模型/硬件不保证输出一致。
-- `model.params` 传入 Ollama `options`，请求 seed 由回合 seed 设置。
-  `num_predict` 限制思考与最终输出；`num_ctx` 控制上下文容量。`think: true`
-  可能显著增加 token 和耗时。`done_reason: length` 会明确报截断，不从内部
-  思考猜测动作，也不自动重试或更换动作。
+- `model.params` 按所选服务适配，具体映射见上文。Ollama 的 `num_predict`
+  限制思考与最终输出，`num_ctx` 控制上下文容量。开启模型思考可能显著增加
+  token 和耗时。模型返回 `done_reason: length` 或 `finish_reason: length`
+  会明确报截断，不从内部思考猜测动作，也不自动重试或更换动作。
 
 ## 目录和复用
 
@@ -77,6 +138,7 @@ agents/
   naive.py / react.py / spring.py
 modules/
   common/llm.py          自由文本 / JSON 请求、计数、硬预算、逐调用记录
+  common/model_config.py  接口识别、模型配置校验和配置密钥脱敏
   common/actions.py      统一动作 schema 和解析
   common/observation.py  统一局部观测描述
   react/components.py   ReAct 输出与轨迹上下文
@@ -108,7 +170,7 @@ tests/                  策略、预算及真实 Crafter 集成测试
 
 ```text
 outputs/<method>/<UTC时间戳_唯一编号>/
-  config.yaml          有效配置（含命令行覆盖）
+  config.yaml          有效配置（含命令行覆盖，移除明文 API Key）
   metadata.json        依赖版本及实际提示词/知识/示例内容
   episode_0000_seed_0_repeat_0/
     trajectory.jsonl   初始状态、实际动作、反馈、策略诊断
@@ -126,7 +188,7 @@ outputs/<method>/<UTC时间戳_唯一编号>/
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-自动测试使用真实 Crafter、受控场景和模拟 Ollama 响应验证策略与边界，不调用
+自动测试使用真实 Crafter、受控场景和模拟模型接口响应验证策略与边界，不调用
 模型。真实模型联调使用上面的短程命令，完整策略效果需要多 seed 实验。
 
 ## 可视化

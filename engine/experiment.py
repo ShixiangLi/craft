@@ -14,6 +14,7 @@ from engine.evaluator import aggregate_results
 from engine.recorder import ExperimentRecorder
 from engine.runner import run_episode
 from modules.common.llm import LLMClient
+from modules.common.model_config import redact_config
 from utils.config import validate_config
 from utils.io import write_json
 
@@ -31,7 +32,7 @@ def run_experiment(config: dict) -> dict:
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_" + uuid4().hex[:8]
     output = Path(config["output_dir"]) / run_id
     output.mkdir(parents=True, exist_ok=False)
-    (output / "config.yaml").write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    (output / "config.yaml").write_text(yaml.safe_dump(redact_config(config), allow_unicode=True, sort_keys=False), encoding="utf-8")
     write_json({"run_id": run_id, "versions": {name: version(name) for name in ("crafter", "numpy", "PyYAML")},
                 "prompts": {key: Path(path).read_text(encoding="utf-8") for key, path in config["agent"]["prompts"].items()}}, output / "metadata.json")
     print(f"输出目录: {output}", flush=True)
