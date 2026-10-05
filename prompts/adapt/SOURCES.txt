@@ -32,6 +32,10 @@ Crafter adaptations:
   experiment-level model budget. Max subtasks bounds one planner output.
 - Propagate the current observed state, root goal, task path, and failure context; no generated
   observations or game-state snapshots. Prompts are supplied to the same configured model backend.
+- Executor prompts expose the depth limit and whether decomposition is available, and use the
+  controller's remaining-call count. At maximum depth they encourage feasible exploration over
+  premature failure based only on an unseen target or an estimated low budget. This is a Crafter
+  prompt adjustment, not a retry mechanism; an explicit task_failed still returns failure normally.
 - Preserve the live world after failures, like the official TextCraft controller. ALFWorld and
   WebShop instead reset and replay successful action checkpoints; this project does not emulate that.
 - The experiment's actual final achievement condition determines reported success. A root LLM

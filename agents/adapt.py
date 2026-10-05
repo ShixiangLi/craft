@@ -51,7 +51,9 @@ class AdaptAgent(ReActAgent):
 
     def _task_context(self, task: str, depth: int, remaining: int) -> dict:
         return {"subtask": task, "task_path": json.dumps(self.task_path, ensure_ascii=False),
-                "depth": str(depth), "remaining_calls": str(remaining)}
+                "depth": str(depth), "max_depth": str(self.params["max_depth"]),
+                "can_decompose": "yes" if depth < self.params["max_depth"] else "no",
+                "remaining_calls": str(remaining)}
 
     def _execute(self, task: str, depth: int):
         # 每次 executor 只保留本次尝试的真实交互，最终目标与父链单独提供。

@@ -6,7 +6,7 @@ agent:
   name: adapt
   params:
     max_depth: 3
-    max_executor_calls: 20
+    max_executor_calls: 80
     max_subtasks: 5
     max_history_steps: 16
   prompts:
