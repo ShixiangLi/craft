@@ -6,6 +6,8 @@ from crafter import constants
 
 from modules.common.model_config import normalize_model_config
 from modules.adapt.components import validate_params as validate_adapt_params
+from modules.harness.components import validate_params as validate_harness_params
+from modules.reactree.components import validate_params as validate_reactree_params
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -13,8 +15,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def validate_config(config: dict) -> dict:
     config = deepcopy(config)
     agent_name = config.get("agent", {}).get("name")
-    if agent_name not in ("naive", "react", "spring", "adapt"):
-        raise ValueError("agent.name 必须是 naive、react、spring 或 adapt")
+    if agent_name not in ("naive", "react", "spring", "adapt", "harness", "reactree"):
+        raise ValueError("agent.name 必须是 naive、react、spring、adapt、harness 或 reactree")
     config["model"] = normalize_model_config(config.get("model", {}))
     env = config.get("environment", {})
     if env.get("name") != "crafter" or env.get("observation") != "local_semantic":
@@ -41,11 +43,30 @@ def validate_config(config: dict) -> dict:
             raise ValueError("success_condition.count 必须是正整数")
     prompts = config["agent"]["prompts"]
     required_prompts = {"system", "step"}
-    if agent_name in ("react", "adapt"):
+    if agent_name in ("react", "adapt", "harness", "reactree"):
         required_prompts |= {"rules", "examples"}
         if agent_name == "adapt":
             required_prompts.add("planner")
             config["agent"]["params"] = validate_adapt_params(config["agent"].get("params"))
+        elif agent_name == "harness":
+            config["agent"]["params"] = validate_harness_params(config["agent"].get("params"))
+        elif agent_name == "reactree":
+            config["agent"]["params"] = validate_reactree_params(config["agent"].get("params"))
+            memory_path = config["agent"]["params"]["episodic_memory_path"]
+            if memory_path is not None:
+                path = Path(memory_path)
+                path = path if path.is_absolute() else PROJECT_ROOT / path
+                if not path.is_file():
+                    raise ValueError(f"ReAcTree 经验库不存在: {path}")
+                config["agent"]["params"]["episodic_memory_path"] = str(path.resolve())
+            sources = []
+            for source in config["agent"]["params"]["episodic_memory_sources"]:
+                path = Path(source)
+                path = path if path.is_absolute() else PROJECT_ROOT / path
+                if not path.is_dir():
+                    raise ValueError(f"ReAcTree 训练源必须是已有运行/回合目录: {path}")
+                sources.append(str(path.resolve()))
+            config["agent"]["params"]["episodic_memory_sources"] = sources
         window = config["agent"].get("params", {}).get("max_history_steps")
         if window is not None and (type(window) is not int or window <= 0):
             raise ValueError("agent.params.max_history_steps 必须为 null 或正整数")
@@ -61,6 +82,8 @@ def validate_config(config: dict) -> dict:
         prompts[key] = str(path.resolve())
     output = Path(config["output_dir"])
     config["output_dir"] = str(output if output.is_absolute() else PROJECT_ROOT / output)
+    if agent_name == "harness" and Path(config["output_dir"]).resolve() != PROJECT_ROOT / "outputs/harness":
+        raise ValueError("Harness 产物必须保存在 outputs/harness，请勿使用其他 output_dir")
     return config
 
 

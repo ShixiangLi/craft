@@ -1,6 +1,6 @@
 # Crafter 长程任务实验
 
-项目实现 naive、ReAct、SPRING 与 ADaPT 四种策略，复用同一 Crafter 环境、局部语义
+项目实现 naive、ReAct、SPRING、ADaPT、ReAcTree 与初版 Harness，复用同一 Crafter 环境、局部语义
 观测、统一模型客户端、预算检查和实验记录。各方法的论文来源、固定
 代码版本、许可与复现边界见 [复现说明](docs/reproduction_sources.md)。
 
@@ -17,6 +17,8 @@ ollama list
 .venv/bin/python -m scripts.run_experiment --config configs/react.yaml
 .venv/bin/python -m scripts.run_experiment --config configs/spring.yaml
 .venv/bin/python -m scripts.run_experiment --config configs/adapt.yaml
+.venv/bin/python -m scripts.run_experiment --config configs/harness.yaml
+.venv/bin/python -m scripts.run_experiment --config configs/reactree.yaml
 
 # 短程验证；也可用 --model / --base-url / --provider 覆盖模型配置
 .venv/bin/python -m scripts.run_experiment --config configs/react.yaml --max-steps 2
@@ -32,7 +34,7 @@ ollama list
 ## 模型接口配置
 
 配置仍按智能体划分：`configs/naive.yaml`、`configs/react.yaml`、
-`configs/spring.yaml`、`configs/adapt.yaml`。修改选定文件中的 `model` 即可切换模型后端，运行命令
+`configs/spring.yaml`、`configs/adapt.yaml`、`configs/harness.yaml`、`configs/reactree.yaml`。修改选定文件中的 `model` 即可切换模型后端，运行命令
 和智能体实现无需改变。默认配置连接本地 Ollama：
 
 ```yaml
@@ -88,7 +90,7 @@ model:
   接口使用 JSON object 模式，并在提示词中描述 schema，随后执行项目已有的
   本地解析校验。这不代表服务端强制执行该 schema，兼容服务需支持 JSON 模式。
 
-## 四种策略
+## 策略
 
 | 策略 | 每步模型调用 | 保留的策略状态 |
 | --- | --- | --- |
@@ -96,6 +98,8 @@ model:
 | ReAct | 1 | 可选显式 thought、动作和真实观测组成的交互历史 |
 | SPRING | 9 | 固定论文知识 C、最近两帧观测、本轮九问 DAG 答案 |
 | ADaPT | 可变：执行动作通常 1 次，另有状态判定和失败后的规划 | 递归任务路径、AND/OR 计划、当前执行尝试的 ReAct 历史 |
+| Harness | 1–5（默认最多 4 次文件工具选择，再选择游戏动作） | ReAct 最近历史、回合内持久计划与记忆文件 |
+| ReAcTree | 可变：真实动作、思考、扩展、记忆查询与完成判断均计调用 | 动态子目标树、节点独立历史、共享可见事实和冻结经验库 |
 
 ReAct 将显式思考与一个动作合并为一次结构化生成；默认保留完整回合历史。
 `agent.params.max_history_steps` 为正整数时，只向模型提供最近若干个完整交互，
@@ -125,6 +129,47 @@ ADaPT 先用 ReAct 执行器直接尝试当前任务，只有执行器报告失�
 继续保留，沿用官方 TextCraft 连续状态行为，不使用 ALFWorld/WebShop 的
 重置与成功动作回放。提示词共享 ReAct 的游戏规则与原创示例，未硬编码钻石
 子任务树。具体来源和适配见 [ADaPT 资产说明](prompts/adapt/SOURCES.txt)。
+
+Harness 复用 ReAct 的历史、真实反馈和共享模型客户端，增加 `list_files`、
+`read_file`、`write_file` 三个文本文件工具。每步先提供当前观测、最近历史和文件
+目录，模型按需读取或更新文件，再选择一个原生 Crafter 动作；工具操作不推进
+游戏，工具选择和动作选择均计入模型调用预算。默认 `max_tool_calls_per_step=4`，
+文件工具选择及输出格式纠错共用这四次额度；达到上限后下一次调用只允许
+选择游戏动作，不自动补一个 noop。最后一次仍输出错误时保留日志并报错。
+
+每个 episode 在自己的 `workspace/` 下初始化 `plan.md` 和 `memory.md`，分别提供
+计划进展／中断恢复和重要经历的空模板。任务分解、记忆内容、读写时机与计划
+修订都由模型决定；没有硬编码钻石路径、自动规划器、地图或坐标记忆。文件
+内容不自动注入下一轮输入，需要按需读取，具体协议见
+[Harness 提示词](prompts/harness/system.txt)。文件会跨环境 step 保留，不跨回合共享，
+也不训练模型或实现 latent dynamics。
+
+Harness 的所有实验产物固定在 `outputs/harness/<run_id>/`，配置校验会拒绝其他
+输出根目录。每回合除原有轨迹、模型日志、结果外，还有独立的 `workspace/`
+与 `tool_calls.jsonl`；初始化模板、每次实际工具请求、结果／错误和写入前后
+哈希均落盘；输出协议错误单独标为 `protocol_error`，不算文件工具执行成功。
+工具不能读写工作区外的文件或日志，不提供 shell。默认单文件
+16 KiB、工作区128 KiB、最多32个文件（含两个初始模板），均可通过 agent 参数
+配置。`write_file` 完整替换 UTF-8 文件，使用原子替换；重写时需要模型自行
+保留重要内容。工具返回错误后模型可在剩余预算内纠错，模型接口本身仍不重试。
+输出使用四个互斥 JSON Schema 分支：游戏动作／列目录只允许 `action/thought`，
+读文件另带 `path`，写文件另带 `path/content`。动作字段优先；混合输出不再
+静默忽略，而是拒绝执行并返回格式反馈，模型需重新明确选择。只有正确的
+`write_file` 才执行写入，不把移动动作自动转换为写入。
+`max_write_chars=4096` 在生成 Schema 和本地解析中同时限制写入内容字符数，
+实际落盘还需满足 UTF-8 字节限制；显式 thought 最多1024字符、路径最多240字符。
+Ollama 原生 `format` 接收这些约束，OpenAI 兼容 JSON object 模式则通过提示词
+和本地校验约束，不保证服务端强制限制字符串长度。协议依据
+[Ollama 结构化输出接口](https://docs.ollama.com/capabilities/structured-outputs)。
+Harness 配置的 `num_predict=8192` 限制单次思考与输出成本；约束文件内容不保证
+内部思考必然终止，服务截断和 HTTP 超时仍按异常记录，不使用半成品动作。
+Harness 默认 `model.timeout=600` 秒，给开启思考的长请求留出等待时间；仍可能
+因服务异常或更长生成超时。超时保留已写文件、轨迹和失败调用，不自动重试
+或续跑；重新启动会创建新的运行目录。
+
+设置 `max_tool_calls_per_step=0` 可做工具关闭消融。比较效果时应同时报告实际
+调用、token 与耗时；文件中的完成声明不替代环境成就。初版只验证工程行为，
+尚无真实模型实验支持其性能收益。
 
 当前四种配置保留本地 `qwen3.8:latest`、`think: true` 及已有预算参数。
 对于支持此设置的服务，`think: false` 关闭的是模型内部思考，ReAct 的显式
@@ -159,7 +204,7 @@ thought、SPRING 的节点问答和 ADaPT 的规划仍正常执行。各方法�
 agents/
   base.py                环境交互接口
   llm_agent.py           共享生命周期、观测文本、模型调用和反馈
-  naive.py / react.py / spring.py / adapt.py
+  naive.py / react.py / spring.py / adapt.py / harness.py
 modules/
   common/llm.py          自由文本 / JSON 请求、计数、硬预算、逐调用记录
   common/model_config.py  接口识别、模型配置校验和配置密钥脱敏
@@ -168,6 +213,7 @@ modules/
   react/components.py   ReAct 输出与轨迹上下文
   spring/components.py  SPRING 固定 DAG 和直接父问答构造
   adapt/components.py   ADaPT 输出协议和 AND/OR 计划解析
+  harness/components.py 回合文件工作区、读写限制和工具输出协议
 configs/                 每种策略的 YAML
 prompts/                 公用规则和各策略提示词、示例、论文知识
 scripts/run_experiment.py  统一启动入口
@@ -201,6 +247,8 @@ outputs/<method>/<UTC时间戳_唯一编号>/
     trajectory.jsonl   初始状态、实际动作、反馈、策略诊断
     model_calls.jsonl  每次模型请求和响应、节点标签、状态、耗时
     result.json        单回合指标
+    tool_calls.jsonl   仅 Harness：初始化和逐工具请求／实际反馈
+    workspace/         仅 Harness：plan.md、memory.md 及模型创建的文件
   summary.json         所有回合完成后的汇总
   error.json           仅异常时生成，保留已完成回合和错误
 ```
@@ -215,6 +263,39 @@ outputs/<method>/<UTC时间戳_唯一编号>/
 
 自动测试使用真实 Crafter、受控场景和模拟模型接口响应验证策略与边界，不调用
 模型。真实模型联调使用上面的短程命令，完整策略效果需要多 seed 实验。
+
+## ReAcTree
+
+ReAcTree 可由节点主动扩展子目标树，控制器执行 sequence、fallback 和 parallel。
+决策首字段 `type` 先选择 Think／Act／Expand，再填写对应内容，具体游戏动作
+只属于 Act；一次决策仍只请求一次模型，不强制根节点分解。默认
+`max_history_steps: null` 保留节点完整历史，正整数才启用窗口；后端上下文
+上限仍生效，与 ReAct 比较时需显式统一历史设置。
+默认 parallel 按官方代码依次执行所有子节点并要求全部成功；`parallel_policy: majority`
+选择论文描述的严格多数汇总。子计划完成后直接返回父节点，不额外重执行父任务。
+默认 `planning_error_policy: node_failure` 将预期模型调用或解析错误交给控制流
+作为当前节点失败，不隐式重试或伪造游戏动作；`abort` 可改为立即结束实验。
+节点输入去重相邻观测，原始节点日志保留完整前后帧。
+
+工作记忆默认 `working_memory_mode: spatial`，通过实际动作和相邻公开局部地图
+保守定位已见地标；无法确定移动时开启独立坐标段，保留多地点、可见变化和
+定位不确定性。动态物体仅记录最后观测；不读取隐藏坐标、全图或提供导航器。
+查询最多返回 `max_recall_locations: 8` 个位置，同时报告总数和截断状态；
+`last_seen` 保留初版标签最后观测语义，可做消融。
+
+`configs/reactree.yaml` 使用当前 ReAct 的模型、规则、原生动作示例、目标和预算，
+不修改现有基线。产物写入 `outputs/reactree`，每回合另存树结构、节点轨迹和工作记忆。
+默认没有 Crafter 情景经验库，不加载额外模型；真实环境成功后只导出候选经验，
+不在评估中自动跨回合学习。需要经验时先用独立训练 seeds 执行采木／木镐等
+短目标，完成后将同一配置改回钻石和不交叠的评估 seeds，并通过
+`episodic_memory_sources` 指定已完成训练 run／episode；同一启动命令会核验
+末帧真实成就、步序和节点轨迹，在新 run 内生成冻结库与来源 manifest。
+也可直接配置 `episodic_memory_path`，与 sources 互斥；非空库必须提供每条
+`source.seed`，seed 不明或与评估重叠会在模型调用前拒绝。直接外部库的 success
+标签不等于构建器已验证原始日志。输入库保持冻结，不自动扫描或改动旧结果。
+当前没有已完成的 ReAcTree 训练经验可默认导入，空库运行仍不能称为完整复现
+原论文经验设置。运行中的旧进程不热更新，也不会自动重启。
+配置、可选依赖、产物格式及原论文/代码差异见 [ReAcTree 说明](docs/reactree.md)。
 
 ## 可视化
 

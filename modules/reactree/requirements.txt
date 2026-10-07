@@ -1,0 +1,3 @@
+# 仅在读取非空 episodic memory 并进行语义检索时需要；基础实验不依赖此包。
+# 与固定官方仓库的依赖版本一致。
+sentence-transformers==3.0.1

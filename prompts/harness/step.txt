@@ -1,0 +1,20 @@
+FINAL GOAL
+$goal
+Environment success condition: $success_condition
+
+COMPLETED INTERACTIONS (oldest first)
+$history
+
+CURRENT OBSERVATION
+$observation
+
+LATEST ENVIRONMENT FEEDBACK
+$previous
+
+WORKSPACE FILES (contents must be read on demand)
+$files
+Remaining file tool calls this step: $tools_remaining
+Maximum UTF-8 bytes per file: $max_file_bytes
+Maximum characters per write_file content: $max_write_chars
+
+Consult or update your plan/memory if useful, or take one immediate environment action. Choose action first. Game/list actions only have action and thought; read_file adds path; write_file adds path and content. Use actual feedback to judge success or failure; do not invent outcomes. Invalid replies consume the same auxiliary call budget as file tools.

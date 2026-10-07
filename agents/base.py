@@ -11,6 +11,12 @@ class AgentFinished(Exception):
 
 
 class BaseAgent(ABC):
+    def bind_episode(self, output_dir) -> None:
+        """可选：将回合持久产物绑定到统一记录器目录。"""
+
+    def finish_episode(self, result: Mapping[str, Any]) -> None:
+        """可选：在环境独立评测后保存方法产物；不修改统一评测结果。"""
+
     @abstractmethod
     def reset(self, task: Mapping[str, Any], *, seed: int) -> None:
         """开始新回合，接收最终任务并清空回合状态。"""

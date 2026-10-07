@@ -1,0 +1,60 @@
+# ReAcTree 的 Crafter 机制适配；当前没有预置 Crafter episodic corpus，不是原论文成绩复现。
+# model/environment/task/experiment 复制当前 ReAct 配置，便于相同设置对照；不修改基线。
+# max_depth 限制 control-node 深度：root agent=1，control+1，child agent+2。
+# parallel_policy=all 遵循官方代码；majority 对应论文描述，不是同时执行。
+# episodic_memory_path=null 时为空库；成功经验只导出，评估期间不更新检索库。
+# max_history_steps 默认 null，保留节点完整历史；正整数仅作为显式窗口消融。
+# 详细参数与复现差异见 docs/reactree.md。
+experiment_name: reactree_ollama
+agent:
+  name: reactree
+  params:
+    max_depth: 6
+    max_subgoals: 5
+    max_nodes: 128
+    max_history_steps: null
+    parallel_policy: all
+    planning_error_policy: node_failure
+    working_memory: true
+    working_memory_mode: spatial
+    max_recall_locations: 8
+    episodic_memory: true
+    episodic_memory_path: null
+    episodic_memory_sources: []  # 显式填已完成训练run/episode目录；与 path 互斥，seed须与评估隔离
+    embedding_model: sentence-transformers/all-MiniLM-L6-v2
+    embedding_device: cpu
+    max_examples: 3
+    max_example_chars: 20000
+  prompts:
+    system: prompts/reactree/system.txt
+    step: prompts/reactree/step.txt
+    examples: prompts/react/examples.txt
+    rules: prompts/common/crafter_rules.txt
+environment:
+  name: crafter
+  observation: local_semantic
+  params: {}
+task:
+  description: Collect at least one unit of diamond while staying alive.
+  success_condition:
+    achievement: collect_diamond
+    count: 1
+model:
+  provider: auto
+  base_url: http://localhost:11434
+  name: qwen3.8:latest
+  api_key: ''
+  api_key_env: null
+  timeout: 120
+  think: false
+  params:
+    temperature: 0
+    num_predict: 65536
+    num_ctx: 65536
+experiment:
+  seeds:
+  - 0
+  episodes_per_seed: 1
+  max_steps: 500
+  max_model_calls: 4500
+output_dir: outputs/reactree

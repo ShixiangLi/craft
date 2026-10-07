@@ -12,6 +12,7 @@ def run_episode(agent: LLMBaseAgent, environment, config: dict, *, seed: int,
     start = time.monotonic()
     limits = config["experiment"]
     agent.reset(config["task"], seed=seed)
+    agent.bind_episode(recorder.output_dir)
     agent.llm.max_calls = limits["max_model_calls"]
     agent.llm.on_call = recorder.record_model_call
     observation = environment.reset(seed=seed)
@@ -84,4 +85,5 @@ def run_episode(agent: LLMBaseAgent, environment, config: dict, *, seed: int,
         "output_tokens": agent.llm.output_tokens, "seconds": time.monotonic() - start,
     }
     recorder.save_result(result)
+    agent.finish_episode(result)
     return result

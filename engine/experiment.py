@@ -9,6 +9,8 @@ from agents.naive import NaiveAgent
 from agents.react import ReActAgent
 from agents.spring import SpringAgent
 from agents.adapt import AdaptAgent
+from agents.harness import HarnessAgent
+from agents.reactree import ReAcTreeAgent
 from agents.llm_agent import LLMBaseAgent
 from engine.environment import create_environment
 from engine.evaluator import aggregate_results
@@ -21,11 +23,15 @@ from utils.io import write_json
 
 
 def create_agent(config: dict) -> LLMBaseAgent:
-    methods = {"naive": NaiveAgent, "react": ReActAgent, "spring": SpringAgent, "adapt": AdaptAgent}
+    methods = {"naive": NaiveAgent, "react": ReActAgent, "spring": SpringAgent,
+               "adapt": AdaptAgent, "harness": HarnessAgent, "reactree": ReAcTreeAgent}
     name = config["agent"]["name"]
     if name not in methods:
         raise ValueError(f"未知智能体: {name}")
-    return methods[name](config["agent"], LLMClient(config["model"]))
+    agent = methods[name](config["agent"], LLMClient(config["model"]))
+    if name == "reactree":
+        agent.episodic.validate_evaluation_seeds(config["experiment"]["seeds"])
+    return agent
 
 
 def run_experiment(config: dict) -> dict:
@@ -34,12 +40,27 @@ def run_experiment(config: dict) -> dict:
     output = Path(config["output_dir"]) / run_id
     output.mkdir(parents=True, exist_ok=False)
     (output / "config.yaml").write_text(yaml.safe_dump(redact_config(config), allow_unicode=True, sort_keys=False), encoding="utf-8")
-    write_json({"run_id": run_id, "versions": {name: version(name) for name in ("crafter", "numpy", "PyYAML")},
-                "prompts": {key: Path(path).read_text(encoding="utf-8") for key, path in config["agent"]["prompts"].items()}}, output / "metadata.json")
+    metadata = {"run_id": run_id, "versions": {name: version(name) for name in ("crafter", "numpy", "PyYAML")},
+                "prompts": {key: Path(path).read_text(encoding="utf-8") for key, path in config["agent"]["prompts"].items()}}
+    write_json(metadata, output / "metadata.json")
     print(f"输出目录: {output}", flush=True)
     environment = create_environment(config["environment"])
     results = []
     try:
+        if config["agent"]["name"] == "reactree" and config["agent"]["params"]["episodic_memory_sources"]:
+            from modules.reactree.corpus import build_frozen_corpus
+            params = config["agent"]["params"]
+            library = output / "episodic_memory.jsonl"
+            manifest = build_frozen_corpus(params["episodic_memory_sources"], library,
+                                           evaluation_seeds=config["experiment"]["seeds"],
+                                           task=config["task"])
+            # 保存可直接重放的有效配置；原始训练来源和校验摘要由 manifest/metadata 留存。
+            params["episodic_memory_path"] = str(library.resolve())
+            params["episodic_memory_sources"] = []
+            metadata["reactree_memory_build"] = manifest
+            write_json(metadata, output / "metadata.json")
+            (output / "config.yaml").write_text(yaml.safe_dump(
+                redact_config(config), allow_unicode=True, sort_keys=False), encoding="utf-8")
         agent = create_agent(config)
         for seed in config["experiment"]["seeds"]:
             for repeat in range(config["experiment"]["episodes_per_seed"]):

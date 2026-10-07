@@ -1,0 +1,29 @@
+FINAL ENVIRONMENT GOAL
+$goal
+Environment success condition: $success_condition
+
+CURRENT AGENT NODE
+Subgoal: $subgoal
+Ancestor task path: $task_path
+Parent/control/sibling information: $family
+Depth: $depth (root agent=1; control nodes and agent nodes each add one).
+Maximum control-node depth: $max_depth
+Expansion allowed: $can_expand; at most $max_subgoals child subgoals; $remaining_nodes total nodes remain.
+Parallel aggregation: $parallel_policy (all = every child succeeds; majority = more than half succeed).
+
+RETRIEVED EPISODIC EXAMPLES
+$episodic_examples
+
+COMPLETED DECISIONS OF THIS NODE ONLY
+$history
+
+CURRENT OBSERVATION
+$observation
+
+LATEST ACTUAL ENVIRONMENT FEEDBACK
+$previous
+
+WORKING MEMORY RECALL TARGETS
+$recall_targets
+
+Choose the decision type first: Think, Act, or Expand. Then fill in only the fields for that type. Return one JSON object starting with type; do not use the older action-first format.

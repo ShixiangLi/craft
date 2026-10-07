@@ -1,6 +1,6 @@
-# ReAct、SPRING 与 ADaPT：来源、实现边界和对比口径
+# ReAct、SPRING、ADaPT 与 ReAcTree：来源、实现边界和对比口径
 
-本项目在 naive 基线之外复现三种策略在 Crafter 中的决策机制，并接入统一模型客户端、观测和实验流程。模型、任务、提示词与评测设置均存在下述适配，因此运行成功不代表复现了原论文分数。
+本项目在 naive 基线之外复现这些策略在 Crafter 中的决策机制，并接入统一模型客户端、观测和实验流程。模型、任务、提示词与评测设置均存在下述适配，因此运行成功不代表复现了原论文分数。
 
 ## 固定来源
 
@@ -13,6 +13,8 @@
 | SPRING 发布的知识与环境描述器 | [SmartPlay Crafter](https://github.com/microsoft/SmartPlay/tree/9dec5f2247da0dc88a47fe3daf3fb4fa02629b89/src/smartplay/crafter) | `9dec5f2247da0dc88a47fe3daf3fb4fa02629b89` |
 | ADaPT 论文 | [Prasad et al., Findings of NAACL 2024，第 3 节、附录 A/B](https://arxiv.org/abs/2311.05772v2) | arXiv v2，camera-ready |
 | ADaPT 官方代码 | [archiki/ADaPT](https://github.com/archiki/ADaPT/tree/ecdc4ab0030b4be9be122622d8ea78f8c59c44c4) | `ecdc4ab0030b4be9be122622d8ea78f8c59c44c4` |
+| ReAcTree 论文 | [Choi et al., AAMAS 2026，第 4 节和附录 A](https://arxiv.org/html/2511.02424v2) | arXiv v2 |
+| ReAcTree 官方代码 | [Choi-JaeWoo/ReAcTree](https://github.com/Choi-JaeWoo/ReAcTree/tree/88b737f1eb8f2b68d3b01bdb7ad46e4c00b3ff3b) | `88b737f1eb8f2b68d3b01bdb7ad46e4c00b3ff3b` |
 
 ## ReAct
 
@@ -94,3 +96,52 @@ ADaPT 的 Crafter 提示词为本项目原创，复用 [ReAct 游戏示例](../p
 ReAct 与 SPRING 代码分别采用 [ReAct MIT](https://github.com/ysymyth/ReAct/blob/6bdb3a1fd38b8188fc7ba4102969fe483df8fdc9/LICENSE)、[SPRING MIT](https://github.com/Holmeswww/SPRING/blob/c0369b9127ab9ec63797797a3952be9e119334e1/LICENSE)。SmartPlay 区分 [代码 MIT](https://github.com/microsoft/SmartPlay/blob/9dec5f2247da0dc88a47fe3daf3fb4fa02629b89/LICENSE-CODE) 和 [数据 CC BY 4.0](https://github.com/microsoft/SmartPlay/blob/9dec5f2247da0dc88a47fe3daf3fb4fa02629b89/LICENSE)。随项目保留的知识和提示词资产需保留其来源、许可和变更说明；论文正文仅作方法依据，本文件没有搬运长篇论文内容。
 
 ADaPT 官方代码采用 [MIT 许可](https://github.com/archiki/ADaPT/blob/ecdc4ab0030b4be9be122622d8ea78f8c59c44c4/LICENSE)。本项目依照其控制机制重新实现 Crafter 适配，提示词和文档为原创，不复制原论文长段正文或原环境 demonstrations。
+
+## ReAcTree
+
+ReAcTree 原论文实验为 WAH-NL 和 ALFRED，没有 Crafter。项目独立实现动态
+子目标节点与控制流，接入既有局部语义观测、模型客户端和评测。每个节点有
+独立上下文，可主动选择动作、思考、扩展、回忆或完成／失败声明；子节点结果
+直接返回父节点，不增加父节点自动重试。没有手写钻石任务树。
+
+固定官方代码中 sequence/fallback 短路，parallel 串行执行所有子节点并要求
+全部成功；论文描述多数投票。配置默认 `parallel_policy: all` 按代码复现，
+`majority` 显式采用论文描述，严格多数平票失败。深度按 agent 与 control 都计数，
+限制 control-node 深度；窗口、总节点数、子目标数与 JSON 契约是工程适配。
+当前协议首字段为 `type: Think|Act|Expand`，先选择决策类别，再生成对应内容，
+具体游戏动作只属于 Act；一次模型请求完成，不额外增加分类调用。官方使用
+Guidance 逐段约束生成；本项目类别优先的 JSON 不是其候选评分的严格等价实现。
+不强制根节点展开。默认 `max_history_steps: null` 保留应用侧完整节点历史，
+正整数为显式窗口，实际容量仍受后端上下文限制。正式对照须统一历史设置。
+
+默认 `planning_error_policy: node_failure` 将模型调用边界的预期 ValueError／
+RuntimeError 和输出解析 ValueError 转成当前节点失败，再按控制流传播；
+不重试该调用、不补伪造环境动作。`abort` 可立即上抛，预算耗尽、用户中断、
+其他程序和 IO 错误仍全局传播。原始响应与错误保留。节点模型输入去重相邻
+before／after 和当前观测，落盘及经验导出仍保留完整观测时序。
+
+工作记忆默认 `spatial`，使用实际动作与相邻公开局部地图的静态地形配准，
+区分成功移动和受阻；不确定时开启不合并的坐标段。同段保留多地点、换算
+当前位置相对关系并按新可见地形更新旧地标，动态物体只记录最后观测。
+查询默认最多 8 个位置并报告总数和截断；`last_seen` 为初版语义消融。
+没有读取隐藏环境坐标、全图或 oracle 子目标进度，也没有额外导航器。
+
+情景记忆使用冻结 JSONL、目标句向量和余弦检索。官方从最终真实成功的任务
+收集所有节点经验，包括失败和扩展节点；本项目真实成功回合仅导出候选，
+不在评估中更新检索库。可在同一配置用独立训练 seeds 收集短目标，再改回
+钻石及独立评估 seeds，通过 `episodic_memory_sources` 选择已完成训练
+run／episode，统一启动时核验日志末帧真实成就、步序及节点与环境对应关系，
+将冻结库、来源目标、seed、文件哈希和排除记录保存在新 run。验证依赖日志
+一致性，不是重放模拟器。训练根目标可不同于评估目标；ReAct 来源只作为
+明确标记的完整根轨迹，不推断子目标。
+
+直接 `episodic_memory_path` 与 sources 互斥，非空库必须有每条 `source.seed`；
+启动前拒绝未知 seed 或与评估重叠的经验，但外部库的 success 标记不等于
+构建器独立核验了原始日志。超出字符预算的完整示例会跳过，不自动总结。
+项目当前没有可默认导入的完成 ReAcTree 训练库，空库运行属于没有 episodic
+示例的机制适配，不能称为复现了原论文完整经验设置或真实长程成绩。
+
+原代码和论文还在同分经验选择、Recall 步数计量方面存在差异；完整对应、
+许可边界、参数与产物见 [ReAcTree 适配说明](reactree.md) 和
+[来源清单](../prompts/reactree/SOURCES.txt)。统一结果不是官方 Crafter Score，
+行为测试和模拟 HTTP 的成功不支持真实模型长程效果结论。

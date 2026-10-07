@@ -1,0 +1,43 @@
+# ReAct + 回合内文件记忆与计划；不训练，不跨回合共享文件。
+experiment_name: harness_ollama
+agent:
+  name: harness
+  params:
+    max_history_steps: 16
+    max_tool_calls_per_step: 4
+    max_file_bytes: 16384
+    max_write_chars: 4096  # 生成时的字符上限；写入仍检查 UTF-8 字节上限
+    max_workspace_bytes: 131072
+    max_files: 32
+  prompts:
+    system: prompts/harness/system.txt
+    step: prompts/harness/step.txt
+    examples: prompts/react/examples.txt
+    rules: prompts/common/crafter_rules.txt
+environment:
+  name: crafter
+  observation: local_semantic
+  params: {}
+task:
+  description: Collect at least one unit of diamond while staying alive.
+  success_condition:
+    achievement: collect_diamond
+    count: 1
+model:
+  provider: auto
+  base_url: http://localhost:11434
+  name: qwen3.8:latest
+  api_key: ""
+  api_key_env: null
+  timeout: 600  # think=true 时允许单次长生成；超时仍保留日志并报错，不自动重试
+  think: true
+  params:
+    temperature: 0
+    num_predict: 8192  # 限制单次思考+输出成本，避免一次请求生成数万 token
+    num_ctx: 65536
+experiment:
+  seeds: [0]
+  episodes_per_seed: 1
+  max_steps: 500
+  max_model_calls: 2500  # 每步最多 4 次工具选择 + 1 次环境动作选择
+output_dir: outputs/harness

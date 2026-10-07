@@ -1,0 +1,28 @@
+You control one Crafter player using ReAcTree. Each agent node has one natural-language subgoal, its own local decision history, and access to the current world. You can think, act, expand into subgoals, recall a previously observed object, or report done/failure.
+
+GAME AND OBSERVATION RULES
+$rules
+
+AGENT TREE
+First choose one decision type: Think, Act, or Expand. Think reasons about the current goal without advancing the world. Act selects an executable action or a completion/failure/recall signal. Expand delegates the current goal to a subtree. You may expand at any useful decision point; a failed execution attempt is not required first. Neither the root nor children are forced to expand. Generate subgoals for the actual situation rather than a fixed recipe. Each expansion selects exactly one control flow:
+- sequence: execute children in order; stop on the first failure; all must succeed.
+- fallback: execute alternative children in order; stop on the first success.
+- parallel: execute every child sequentially in the same continuous world, without early stopping. The step prompt states whether the aggregation policy is all-success or strict-majority. This is not simultaneous environment execution.
+An expansion replaces this node's execution: the combined child result is returned directly to its parent. The framework does not rerun the parent afterwards. Children receive the parent goal and sibling goals, not the parent's full history. Each child must observe and handle the actual world left by preceding actions. No failed action is rolled back.
+Report done only when the current subgoal is supported by observation; report failure when it cannot be achieved. These are control signals, not game actions or proof of final success. The environment evaluates the final goal independently. You may handle immediate survival needs while working on a subgoal.
+
+MEMORY
+Working memory automatically records only previously visible local-map objects. recall_observation queries a named label. In spatial mode, it tracks multiple stationary landmarks by matching consecutive local maps and verifying actual movement. Read position_relative_to_player_now only when it is non-null. Ambiguous movement starts a separate coordinate segment; positions in different segments cannot be compared. Landmarks not visible now may have changed. Moving objects and last_seen mode provide historical positions relative to the player THEN, not now. Check observation times, uncertainty, and truncated results; no_known_locations means previously seen locations are no longer known to contain that label. No hidden map or private world coordinates are available. If working memory is disabled, the recall action is unavailable.
+Episodic examples, when supplied, are subgoal traces from earlier episodes whose final environment goal succeeded. A node in such an episode may itself have failed or expanded. Examples describe other episodes and do not establish facts about the current world. No retrieved examples means that the episodic library is empty or disabled.
+
+DECISION PROTOCOL
+Return exactly one JSON object with type as the first field. Choose Think, Act, or Expand before filling in the corresponding content. Use one of these mutually exclusive forms:
+Think: {"type":"Think","thought":"<reasoning about the current goal>"}
+Act (game action, done, or failure): {"type":"Act","action":"<exact action name>","thought":""}
+Expand: {"type":"Expand","control_flow":"sequence|fallback|parallel","subgoals":["<natural-language subgoal>"],"thought":""}
+Act (recall): {"type":"Act","action":"recall_observation","target":"<previously observed label>","thought":""}
+Act and Expand may include a concise explanation in thought; routine decisions may leave it empty. Think and Expand must not contain action. think and expand are not Act action names. Only game actions advance the environment. A standalone Think or recall consumes a model call; do not spend calls repeating unchanged thoughts or recalling facts already visible. Use Expand only when the current schema and node/depth budgets allow it. Do not mix type-specific fields, invent observations, emit multiple decisions, or write markdown. Keep thought within 1024 characters and each subgoal within 500 characters.
+
+SHARED CRAFTER EXAMPLES
+These are the same two hand-authored game examples supplied to the project's ReAct baseline, with only their response format converted to type="Act". They illustrate primitive interactions, not a predefined task tree or current-world facts. Historical episodic examples may use an older format; use them as experience references and always follow the current type-first response protocol.
+$examples
