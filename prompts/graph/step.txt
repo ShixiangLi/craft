@@ -1,0 +1,18 @@
+Final goal: $goal
+Success condition: $success_condition
+
+Selected task and incident edges:
+$task
+Current dependency checks:
+$readiness
+Current demand (satisfy these conditions for the consumer, not every outgoing edge):
+$demand
+Active survival events:
+$events
+
+Current observation:
+$observation
+Recent real action history (before/after are environment observations):
+$history
+
+Use the current demand and the code-verified action results to choose one native action that advances it.

@@ -36,6 +36,11 @@ def normalize_model_config(config: dict) -> dict:
     think = config.get("think")
     if think is not None and type(think) is not bool:
         raise ValueError("model.think 必须是 true、false 或 null")
+    stream = config.setdefault("stream", False)
+    if type(stream) is not bool:
+        raise ValueError("model.stream 必须是 true 或 false")
+    if stream and resolve_provider(config) == "ollama":
+        raise ValueError("model.stream 当前仅支持 OpenAI 兼容及 DeepSeek 接口")
     for field in ("api_key", "api_key_env"):
         value = config.get(field)
         if value is not None and (not isinstance(value, str) or "\n" in value or "\r" in value):

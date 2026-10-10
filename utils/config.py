@@ -15,8 +15,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def validate_config(config: dict) -> dict:
     config = deepcopy(config)
     agent_name = config.get("agent", {}).get("name")
-    if agent_name not in ("naive", "react", "spring", "adapt", "harness", "reactree"):
-        raise ValueError("agent.name 必须是 naive、react、spring、adapt、harness 或 reactree")
+    if agent_name not in ("naive", "react", "spring", "adapt", "harness", "reactree", "graph"):
+        raise ValueError("agent.name 必须是 naive、react、spring、adapt、harness、reactree 或 graph")
     config["model"] = normalize_model_config(config.get("model", {}))
     env = config.get("environment", {})
     if env.get("name") != "crafter" or env.get("observation") != "local_semantic":
@@ -70,6 +70,10 @@ def validate_config(config: dict) -> dict:
         window = config["agent"].get("params", {}).get("max_history_steps")
         if window is not None and (type(window) is not int or window <= 0):
             raise ValueError("agent.params.max_history_steps 必须为 null 或正整数")
+    elif agent_name == "graph":
+        from agents.graph import validate_params as validate_graph_params
+        required_prompts.add("rules")
+        config["agent"]["params"] = validate_graph_params(config["agent"].get("params"))
     elif agent_name == "spring":
         required_prompts |= {"questions", "knowledge"}
     if not required_prompts <= prompts.keys():

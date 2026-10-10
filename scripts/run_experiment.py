@@ -13,6 +13,7 @@ def main() -> None:
     parser.add_argument("--provider", choices=("auto", "ollama", "deepseek", "openai"),
                         help="覆盖接口类型；auto 根据 API 地址识别")
     parser.add_argument("--max-steps", type=int, help="覆盖每回合步数，用于短程验证")
+    parser.add_argument("--seed", type=int, help="仅运行指定 seed，覆盖 experiment.seeds")
     args = parser.parse_args()
     try:
         config = load_config(args.config)
@@ -24,6 +25,8 @@ def main() -> None:
             config["model"]["provider"] = args.provider
         if args.max_steps is not None:
             config["experiment"]["max_steps"] = args.max_steps
+        if args.seed is not None:
+            config["experiment"]["seeds"] = [args.seed]
         summary = run_experiment(config)
     except (ValueError, RuntimeError, OSError) as exc:
         parser.exit(1, f"实验失败: {exc}\n")

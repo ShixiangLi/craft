@@ -11,6 +11,7 @@ from agents.spring import SpringAgent
 from agents.adapt import AdaptAgent
 from agents.harness import HarnessAgent
 from agents.reactree import ReAcTreeAgent
+from agents.graph import GraphAgent
 from agents.llm_agent import LLMBaseAgent
 from engine.environment import create_environment
 from engine.evaluator import aggregate_results
@@ -24,7 +25,8 @@ from utils.io import write_json
 
 def create_agent(config: dict) -> LLMBaseAgent:
     methods = {"naive": NaiveAgent, "react": ReActAgent, "spring": SpringAgent,
-               "adapt": AdaptAgent, "harness": HarnessAgent, "reactree": ReAcTreeAgent}
+               "adapt": AdaptAgent, "harness": HarnessAgent, "reactree": ReAcTreeAgent,
+               "graph": GraphAgent}
     name = config["agent"]["name"]
     if name not in methods:
         raise ValueError(f"未知智能体: {name}")

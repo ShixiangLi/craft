@@ -1,0 +1,55 @@
+# 动态任务图：模型建图与单步动作；代码判定完成、事件与调度。
+experiment_name: graph_ollama_qwen3_8
+agent:
+  name: graph
+  params:
+    max_task_steps: 128
+    blocked_threshold: 3
+    max_plan_calls: 48
+    max_control_rounds: 16
+    max_history_steps: 20
+    thresholds:
+      food:
+        trigger: 4
+        recover: 9
+      energy:
+        trigger: 4
+        recover: 9
+      drink:
+        trigger: 4
+        recover: 9
+    threat_radius: 5
+    clear_steps: 2
+  prompts:
+    system: prompts/graph/system.txt
+    step: prompts/graph/step.txt
+    rules: prompts/common/crafter_rules.txt
+environment:
+  name: crafter
+  observation: local_semantic
+  params: {}
+task:
+  description: Collect at least one unit of diamond while staying alive.
+  success_condition:
+    achievement: collect_diamond
+    count: 1
+model:
+  provider: ollama
+  base_url: http://127.0.0.1:11434
+  name: qwen3.8:latest
+  api_key: ''
+  api_key_env: null
+  timeout: 600  # 给本地模型首次加载和长上下文处理预留时间
+  stream: false  # 当前 Ollama 原生接口使用非流式响应
+  think: true
+  params:
+    temperature: 0
+    num_predict: 65536
+    num_ctx: 65536
+experiment:
+  seeds:
+  - 0
+  episodes_per_seed: 1
+  max_steps: 500
+  max_model_calls: 4500
+output_dir: outputs/graph

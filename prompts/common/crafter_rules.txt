@@ -2,6 +2,7 @@ OBSERVATIONS
 Trust the latest observation. A reward of zero alone does not mean an action failed.
 Map coordinates are relative to the player at (dx=0, dy=0). North/up decreases dy; south/down increases dy; west/left decreases dx; east/right increases dx. Each row has a fixed dy and columns follow the listed dx values. Only the immediately adjacent tile in the facing direction is the target of do and place actions. Diagonal or distant resources cannot be interacted with directly. The view is local, so a resource missing from the map may still exist elsewhere.
 Health, food, drink, and energy range from 0 to 9. Inventory counts are current possessions; achievement counts record past events and do not mean the resource is still in your inventory. Omitted inventory items and achievements have count zero. The semantic label plant does not reveal ripeness.
+Each inventory item count is capped at 9. If a plan consumes more, collect again after consumption rather than requesting an inventory threshold above 9.
 
 ACTIONS AND CONDITIONS
 - noop: advance one game step without a voluntary action.
@@ -17,3 +18,7 @@ ACTIONS AND CONDITIONS
 - make_iron_pickaxe / make_iron_sword: spend 1 wood, 1 coal, and 1 iron; both a table and a furnace must be within one tile, including diagonals.
 Tools are selected automatically when interacting; there is no equip action. Crafting consumes materials but not workstations. An action name can be valid even when its resource or spatial requirements are not met; such an attempt may have no useful effect. Walking into lava kills the player. Food, drink, and energy depletion endanger health; enemies can also damage you.
 
+SURVIVAL AND REUSE
+Pickaxes enable mining but do not increase attack damage. A do attack deals 1 damage without a sword, or 2/3/5 with a wood/stone/iron sword; the best available sword is selected automatically. Tools are retained when used, and crafting a higher-tier tool does not consume a lower-tier tool.
+Zombies pursue the player and attack at adjacent range. Skeletons shoot arrows from a distance. Terrain can block arrows; arrows can destroy tables and furnaces they hit, so past placement does not guarantee a workstation still exists.
+Health regenerates gradually when food > 0, drink > 0, and either energy > 0 or the player is sleeping. Eating and drinking restore their own vital, not health instantly. Sleep restores energy and speeds health recovery when those requirements are met, but enemies continue acting and zombies deal greater damage to a sleeping player.

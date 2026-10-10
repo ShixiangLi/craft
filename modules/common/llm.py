@@ -27,6 +27,7 @@ class LLMClient:
         self.timeout = config["timeout"]
         self.options = dict(config["params"])
         self.think = config.get("think")
+        self.stream = config["stream"]
         self._api_key = config.get("api_key") or ""
         if not self._api_key and config.get("api_key_env"):
             self._api_key = os.environ.get(config["api_key_env"], "")
@@ -82,7 +83,16 @@ class LLMClient:
         return redact_secrets(value, (self._api_key,))
 
     def _payload(self, messages: list[dict], seed: int, schema: dict | None) -> dict:
-        payload = {"model": self.model, "messages": messages, "stream": False}
+        if schema is not None:
+            # A native output constraint is not a model-visible tool/field contract.
+            instruction = ("Return only a JSON object matching this JSON schema:\n"
+                           + json.dumps(schema, ensure_ascii=False))
+            messages = [dict(message) for message in messages]
+            if messages and messages[0].get("role") == "system":
+                messages[0]["content"] += "\n\n" + instruction
+            else:
+                messages.insert(0, {"role": "system", "content": instruction})
+        payload = {"model": self.model, "messages": messages, "stream": self.stream}
         if self.provider == "ollama":
             options = dict(self.options)
             # 两种命名都可使用，保留原有 Ollama 配置的优先级。
@@ -117,22 +127,13 @@ class LLMClient:
         if self.provider == "deepseek" and self.think is not None:
             payload["thinking"] = {"type": "enabled" if self.think else "disabled"}
         if schema is not None:
-            # JSON mode 不强制 schema，因此提示中写明契约，动作仍由智能体验证。
-            instruction = ("Return only a JSON object matching this JSON schema:\n"
-                           + json.dumps(schema, ensure_ascii=False))
-            messages = [dict(message) for message in messages]
-            if messages and messages[0].get("role") == "system":
-                messages[0]["content"] += "\n\n" + instruction
-            else:
-                messages.insert(0, {"role": "system", "content": instruction})
-            payload["messages"] = messages
             payload["response_format"] = {"type": "json_object"}
         return payload
 
     def _send(self, request: Request) -> str:
         try:
             with opener.open(request, timeout=self.timeout) as response:
-                data = json.load(response)
+                data = self._read_stream(response) if self.stream else json.load(response)
         except HTTPError as exc:
             detail = self._redact(exc.read().decode(errors="replace"))[:2000]
             raise RuntimeError(f"{self.display_name} HTTP {exc.code}: {detail}") from None
@@ -172,6 +173,9 @@ class LLMClient:
             )
         if self.provider != "ollama" and data.get("done_reason") != "stop":
             raise ValueError(f"{self.display_name} 生成未正常完成（finish_reason={data.get('done_reason')}）")
+        if self.provider == "ollama" and (data.get("done") is not True
+                or data.get("done_reason") not in (None, "stop")):
+            raise ValueError(f"Ollama 生成未正常完成（done={data.get('done')}，done_reason={data.get('done_reason')}）")
         message = data.get("message") or {}
         content = message.get("content") if isinstance(message, dict) else None
         if not isinstance(content, str) or not content.strip():
@@ -182,3 +186,44 @@ class LLMClient:
                 "原始响应已保存到轨迹；思考内容不能作为最终动作执行。"
             )
         return content
+
+    def _read_stream(self, response):
+        """合并 SSE 正文与推理，沿用非流式响应校验；中断时保留已收到的证据。"""
+        message = {"role": "assistant", "content": "", "reasoning_content": ""}
+        choice = {"index": 0, "message": message, "finish_reason": None}
+        data = {"choices": [choice], "stream": True}
+        self.last_response = data
+        last_notice = time.monotonic()
+        for line in response:
+            line = line.decode("utf-8").strip()
+            if not line.startswith("data:"):
+                continue  # 空行、SSE 心跳和事件名都不是正文。
+            raw = line[5:].strip()
+            if raw == "[DONE]":
+                break
+            chunk = self._redact(json.loads(raw))
+            if not isinstance(chunk, dict):
+                raise ValueError("模型流式响应必须是 JSON 对象")
+            if chunk.get("error"):
+                data["error"] = chunk["error"]
+                raise RuntimeError(f"{self.display_name}: {chunk['error']}")
+            for key in ("id", "model", "created", "usage", "system_fingerprint"):
+                if chunk.get(key) is not None:
+                    data[key] = chunk[key]
+            for part in chunk.get("choices", []):
+                if part.get("index", 0) != 0:
+                    continue
+                delta = part.get("delta") or {}
+                for key in ("content", "reasoning_content"):
+                    value = delta.get(key)
+                    if value is not None:
+                        if not isinstance(value, str):
+                            raise ValueError(f"流式 {key} 必须是字符串")
+                        message[key] += value
+                if part.get("finish_reason") is not None:
+                    choice["finish_reason"] = part["finish_reason"]
+            if time.monotonic() - last_notice >= 30:
+                print(f"  模型调用{self.calls}接收中：正文{len(message['content'])}字，"
+                      f"推理{len(message['reasoning_content'])}字", flush=True)
+                last_notice = time.monotonic()
+        return data
